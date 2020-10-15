@@ -2,7 +2,7 @@
 FIT 3143 Assignment 2
 Authors [A~Z]:
     Alfons Fernaldy 30127831
-    Matthew Khoo
+    Matthew Khoo 29270294
 */
 
 #include <stdio.h>
@@ -23,16 +23,15 @@ Authors [A~Z]:
 #define TEMP_THRESHOLD 80
 
 /* GLOBAL VARIABLES */
-int stationRank = 20;
+int    stationRank;
+int    maxIterations = 2;
+double iterationSleep = 0.1;
+int    row, column;
+int    cummulativeSeed = 1;
 
 void master(MPI_Comm world_comm, int size);
 int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size);
-
-int randomNumber(int low, int high, int rank){
-    unsigned int seed = time(0) * rank;
-    int randomVal = TEMP_LOW + (rand_r(&seed) % (TEMP_HIGH-TEMP_LOW+1)) ;
-    return randomVal;
-}
+int randomTemperature(int rank);
 
 int main(int argc, char *argv[]){
     int rank, size;
@@ -42,6 +41,33 @@ int main(int argc, char *argv[]){
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    // Set base station (master node) rank
+    stationRank = size-1;
+    
+    // Check that there are 3 command arguments (main, rows, columns) and that row * column + 1 = size
+    // Note: We have chose to let all processes calculate the error value instead of just root node
+    // because the alternative involves root node broadcasting error to all other nodes
+    int error = 0;
+    if(argc != 3){
+        if(rank == stationRank) 
+            printf("Invalid number of arguments\nFormat should be: mpirun -np <total_processes> -oversubscribe main <row> <column>\n");
+        error = -1;
+    }else{
+        row = atoi(argv[1]);
+        column = atoi(argv[2]);
+        int supportedSize = row * column +1;
+        if(supportedSize != size){
+            error = -2;
+            if(rank == stationRank) 
+                printf("Invalid rows and columns in terms of total_processes\nProcesses = row * column +1\n");
+        }
+    }
+
+    // Exit gracefully using MPI_Finalize() and not MPI_Abort()
+    if(error != 0){
+        MPI_Finalize();
+        return 0;
+    }
    
     // Create a new communicator for the station node
     MPI_Comm station_comm;
@@ -58,18 +84,46 @@ int main(int argc, char *argv[]){
     // Finalize the MPI program
     MPI_Comm_free(&station_comm);
     MPI_Finalize();
-      
+
     return 0;
 }
 
+void* satellite(void* arg){
+    int (*array)[12] = arg;
+    int iteration = 0;
+    while(iteration < maxIterations){
+        int sat_temperature = randomTemperature(stationRank);
+        array[0][0] = sat_temperature;
+        printf("Satellite Iteration %d: %d\n", iteration, array[0][0]);
+        iteration++;
+    }
+}
 
 void master(MPI_Comm world_comm, int size){
-    int temperature;
     MPI_Status status;
-    // Listen to requests sent by wsn nodes
-    for(int i=0; i < size - 1; i++){
-        MPI_Recv(&temperature, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, world_comm, &status);
-        printf("Node %02d has temperature %d\n",status.MPI_SOURCE, temperature);
+    int sensorTemp;
+
+    // Initialize a 2D array of row*column to store satellite temperatures
+    int satelliteTemp[row][column];
+    for (int i = 0; i<row; i++){
+        for (int j = 0; j<column; j++)
+            satelliteTemp[i][j] = 0;
+    }
+
+    // Start the satellite posix thread and pass in satelliteTemp array
+    pthread_t satelliteThread;
+    pthread_create(&satelliteThread, NULL, satellite, &satelliteTemp);
+
+    // Listen to incoming requests sent by wsn nodes
+    int currentIteration = 0;
+    while(currentIteration < maxIterations){
+        printf("Iteration %d\n", currentIteration);
+        for(int i=0; i < size - 1; i++){
+            MPI_Recv(&sensorTemp, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, world_comm, &status);
+            printf("Node %02d has temperature %d\n",status.MPI_SOURCE, sensorTemp);
+        }
+        printf("\n");
+        currentIteration++;
     }
 }
 
@@ -78,7 +132,7 @@ int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size){
     MPI_Comm grid_comm;
     int ndims = 2;
     int reorder = 1;
-    int dims[2] = {5, 4};
+    int dims[2] = {row, column};
     int period[2] = {0, 0};
     int coord[2];
     int neighbors[4];
@@ -100,10 +154,16 @@ int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size){
     MPI_Cart_shift(grid_comm, SHIFT_ROW, DISP, &neighbors[0], &neighbors[1]);
     MPI_Cart_shift(grid_comm, SHIFT_COL, DISP, &neighbors[2], &neighbors[3]);
 
-    // Generate temperature and send to station
-    int temperature = randomNumber(TEMP_LOW, TEMP_HIGH, rank);
-    // printf("Rank %d: %d\n", rank, temperature);
-    MPI_Send(&temperature, 1, MPI_INT, stationRank, 0, world_comm);
+    int currentIteration = 0;
+
+    while(currentIteration < maxIterations){
+        // Generate temperature and send to station
+        int temperature = randomTemperature(rank);
+        // printf("Rank %d: %d\n", rank, temperature);
+        MPI_Send(&temperature, 1, MPI_INT, stationRank, 0, world_comm);
+        currentIteration++;
+        sleep(iterationSleep);
+    }
 
 
     // If temperature exceeds 80 degrees, send a message to all non-null adjacent neighbors
@@ -125,4 +185,15 @@ int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size){
 
     MPI_Comm_free(&grid_comm);
 	return 0;
+}
+
+/* Generates a random temperature value between TEMP_HIGH and TEMP_LOW 
+*  To ensure processes don't generate the same random values, we use the process's rank
+*  as a product of cumulative seed which is multiplied with the time
+*/
+int randomTemperature(int rank){
+    cummulativeSeed *= (rank + 2); // +2 so cummulativeSeed of ranks 0 and 1 can grow
+    unsigned int seed = time(0) * cummulativeSeed;
+    int randomVal = TEMP_LOW + (rand_r(&seed) % (TEMP_HIGH-TEMP_LOW+1));
+    return randomVal;
 }
