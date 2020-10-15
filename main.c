@@ -12,6 +12,7 @@ Authors [A~Z]:
 #include <stdbool.h> 
 #include <time.h>
 #include <unistd.h>
+#include <time.h>
 #include <pthread.h>
 #include <mpi.h>
 
@@ -25,13 +26,16 @@ Authors [A~Z]:
 /* GLOBAL VARIABLES */
 int    stationRank;
 int    maxIterations = 2;
-double iterationSleep = 0.1;
+double iterationSleep = 1;
 int    row, column;
 int    cummulativeSeed = 1;
+char   address[20];
+char   MAC[] = "fc:3f:db:8f:dc:15";
 
 void master(MPI_Comm world_comm, int size);
 int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size);
-int randomTemperature(int rank);
+int randomValue(int low, int high, int rank);
+void getTimeStamp(char* buf, int size);
 
 int main(int argc, char *argv[]){
     int rank, size;
@@ -41,8 +45,12 @@ int main(int argc, char *argv[]){
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    
     // Set base station (master node) rank
     stationRank = size-1;
+
+    // Assign a simulated IP address to each node
+    snprintf(address, 20, "182.253.250.%d", 50+rank);
     
     // Check that there are 3 command arguments (main, rows, columns) and that row * column + 1 = size
     // Note: We have chose to let all processes calculate the error value instead of just root node
@@ -89,12 +97,14 @@ int main(int argc, char *argv[]){
 }
 
 void* satellite(void* arg){
-    int (*array)[12] = arg;
+    int (*array)[column] = arg;
     int iteration = 0;
     while(iteration < maxIterations){
-        int sat_temperature = randomTemperature(stationRank);
-        array[0][0] = sat_temperature;
-        printf("Satellite Iteration %d: %d\n", iteration, array[0][0]);
+        int sat_temperature = randomValue(TEMP_LOW, TEMP_HIGH, stationRank);
+        int randomRow = randomValue(0, row-1, stationRank);
+        int randomCol = randomValue(0, column-1, stationRank);
+        array[randomRow][randomCol] = sat_temperature;
+        printf("Satellite Iteration %d | Row %d | Col %d | Temperature %d\n", iteration, randomRow, randomCol, array[randomRow][randomCol]);
         iteration++;
     }
 }
@@ -102,7 +112,6 @@ void* satellite(void* arg){
 void master(MPI_Comm world_comm, int size){
     MPI_Status status;
     int sensorTemp;
-
     // Initialize a 2D array of row*column to store satellite temperatures
     int satelliteTemp[row][column];
     for (int i = 0; i<row; i++){
@@ -116,14 +125,23 @@ void master(MPI_Comm world_comm, int size){
 
     // Listen to incoming requests sent by wsn nodes
     int currentIteration = 0;
+    char timeStamp[30];
     while(currentIteration < maxIterations){
         printf("Iteration %d\n", currentIteration);
         for(int i=0; i < size - 1; i++){
             MPI_Recv(&sensorTemp, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, world_comm, &status);
-            printf("Node %02d has temperature %d\n",status.MPI_SOURCE, sensorTemp);
+		    getTimeStamp(timeStamp, 30);
+            printf("%s - Node %02d has temperature %d\n",timeStamp, status.MPI_SOURCE, sensorTemp);
         }
         printf("\n");
         currentIteration++;
+        sleep(iterationSleep);
+    }
+    for (int i = 0; i < row; i++) {
+        for (int j = 0; j < column; j++) {
+            printf("%d ", satelliteTemp[i][j]);
+        }
+        printf("\n");
     }
 }
 
@@ -137,7 +155,6 @@ int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size){
     int coord[2];
     int neighbors[4];
     int nrows, ncols;
-
     // MPI_Dims_create finds the best dimension for the cartesian grid 
     MPI_Dims_create(size-1, ndims, dims);
 
@@ -158,10 +175,11 @@ int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size){
 
     while(currentIteration < maxIterations){
         // Generate temperature and send to station
-        int temperature = randomTemperature(rank);
+        int temperature = randomValue(TEMP_LOW, TEMP_HIGH, rank);
         // printf("Rank %d: %d\n", rank, temperature);
         MPI_Send(&temperature, 1, MPI_INT, stationRank, 0, world_comm);
         currentIteration++;
+        cummulativeSeed = 1;
         sleep(iterationSleep);
     }
 
@@ -182,7 +200,6 @@ int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size){
     //         MPI_Send(&temperature, 1, MPI_INT, neighbor_rank, REPLY_TAG, grid_comm, receive_status[i]);
     //     }
     // }
-
     MPI_Comm_free(&grid_comm);
 	return 0;
 }
@@ -191,9 +208,21 @@ int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size){
 *  To ensure processes don't generate the same random values, we use the process's rank
 *  as a product of cumulative seed which is multiplied with the time
 */
-int randomTemperature(int rank){
+int randomValue(int low, int high, int rank){
     cummulativeSeed *= (rank + 2); // +2 so cummulativeSeed of ranks 0 and 1 can grow
     unsigned int seed = time(0) * cummulativeSeed;
-    int randomVal = TEMP_LOW + (rand_r(&seed) % (TEMP_HIGH-TEMP_LOW+1));
+    int randomVal = low + (rand_r(&seed) % (high-low+1));
     return randomVal;
+}
+
+void getTimeStamp(char* buf, int size){
+	struct tm ts;
+	time_t currentTime;
+
+	// Get time in seconds and use localtime() to find specific time values
+	time(&currentTime);
+    ts = *localtime(&currentTime);
+
+	// Convert the time to date time string
+    strftime(buf, size, "%a %Y-%m-%d %H:%M:%S", &ts);
 }
