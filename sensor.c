@@ -73,14 +73,47 @@ int slave(MPI_Comm station_comm, int rank, int size){
         int position = 0;
 
         // Generate temperature and send to station
-        // printf("Rank %d Position: %d\n", rank, position);
         int temperature = randomValue(TEMP_LOW, TEMP_HIGH, rank);
         char alertTime[datesize];
+        char nodeIPMAC[2][20];
+        strncpy(nodeIPMAC[0], &address, 20);
+        strncpy(nodeIPMAC[1], &MAC, 20);
+
         getTimeStamp(alertTime);
+        int neighborDetails[4][3];
+        char neighborIP[4][20];
+        char neighborMAC[4][20];
+
+        for(int i=0 ; i<4 ; i++){
+            int neighborCoord[2];
+            neighborDetails[i][0] = neighborDetails[i][1] = neighborDetails[i][2] = -1;
+            strncpy(neighborIP[i], "-1", 20);
+            strncpy(neighborMAC[i], "-1", 20);
+            if(neighbors[i] != -2){
+                MPI_Cart_coords(grid_comm, neighbors[i], ndims, neighborCoord);
+                neighborDetails[i][0] = neighborCoord[0];
+                neighborDetails[i][1] = neighborCoord[1];
+                neighborDetails[i][2] = 100;
+                strncpy(neighborIP[i], &address, 20);
+                strncpy(neighborMAC[i], &MAC, 20);
+            }
+        }
+
+        // for(int i=0 ; i<4 ; i++){
+        //     printf("IP: %s MAC: %s\n", neighborIP[i], neighborMAC[i]);
+        // }
+
+        // Pack all the info needed to be sent to the base station
         MPI_Pack(&temperature, 1, MPI_INT, packbuf, buffsize, &position, MPI_COMM_WORLD);
         MPI_Pack(alertTime, datesize, MPI_CHAR, packbuf, buffsize, &position, MPI_COMM_WORLD);
-        printf("Rank %d Position: %d\n", rank, position);
+        MPI_Pack(&coord, 2, MPI_INT, packbuf, buffsize, &position, MPI_COMM_WORLD);
+        MPI_Pack(&nodeIPMAC, 40, MPI_CHAR, packbuf, buffsize, &position, MPI_COMM_WORLD);
+        MPI_Pack(&neighborDetails, 12, MPI_INT, packbuf, buffsize, &position, MPI_COMM_WORLD);
+        MPI_Pack(&neighborIP, 80, MPI_CHAR, packbuf, buffsize, &position, MPI_COMM_WORLD);
+        MPI_Pack(&neighborMAC, 80, MPI_CHAR, packbuf, buffsize, &position, MPI_COMM_WORLD);
+
         MPI_Send(packbuf, buffsize, MPI_PACKED, stationRank, 0, MPI_COMM_WORLD);
+
         currentIteration++;
         cummulativeSeed = 1;
         sleep(iterationSleep);

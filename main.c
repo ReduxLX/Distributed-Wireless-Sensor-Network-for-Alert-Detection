@@ -25,7 +25,7 @@ Authors [A~Z]:
 int    stationRank;
 int    row, column;
 int    maxIterations   = 2;
-int    buffsize        = 200;
+int    buffsize        = 500;
 int    datesize        = 30;
 
 int    TEMP_LOW        = 60;

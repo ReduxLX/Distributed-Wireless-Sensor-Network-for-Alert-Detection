@@ -45,11 +45,18 @@ void master(int size){
 
     startSatellite();
 
-    // Listen to incoming requests sent by wsn nodes
-    int currentIteration = 0;
+    int  currentIteration = 0;
+    int  messageCount[(size-1)];
+    memset(messageCount, 0, (size-1)*sizeof(int));
     char logTime[datesize];
     char alertTime[datesize];
+    int  alertNode[2];
+    char nodeIPMAC[2][20];
+    int  neighborDetails[4][3];
+    char neighborIP[4][20];
+    char neighborMAC[4][20];
     
+    // Listen to incoming requests sent by wsn nodes
     while(currentIteration < maxIterations){
         char packbuf[buffsize];
         printf("Iteration %d\n", currentIteration);
@@ -57,11 +64,29 @@ void master(int size){
             position = 0;
             // printf("Rank %d Position: %d\n", 20, position);
             MPI_Recv(packbuf, buffsize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+
             MPI_Unpack(packbuf, buffsize, &position, &sensorTemp, 1, MPI_INT, MPI_COMM_WORLD);
             MPI_Unpack(packbuf, buffsize, &position, &alertTime, datesize, MPI_CHAR, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, buffsize, &position, &alertNode, 2, MPI_INT, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, buffsize, &position, &nodeIPMAC, 40, MPI_CHAR, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, buffsize, &position, &neighborDetails, 12, MPI_INT, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, buffsize, &position, &neighborIP, 80, MPI_CHAR, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, buffsize, &position, &neighborMAC, 80, MPI_CHAR, MPI_COMM_WORLD);
+            
+            int sourceRank = status.MPI_SOURCE;
             getTimeStamp(logTime);
-            printf("%s - Node %02d has temperature %d\n",logTime, status.MPI_SOURCE, sensorTemp);
-            printf("Alert Time %s\n",alertTime);
+            messageCount[sourceRank] += 1; 
+            printf("\nNode %02d has temperature %d\n",sourceRank, sensorTemp);
+            printf("\tAlert Time: %s | Logged Time: %s\n",alertTime, logTime);
+            printf("\tNode Coords: (%d, %d) IP: %s | MAC: %s\n",alertNode[0], alertNode[1], nodeIPMAC[0], nodeIPMAC[1]);
+            printf("\tNeighbors:\n");
+            for(int i=0 ; i<4 ; i++){
+                if(neighborDetails[i][0] != -1){
+                    printf("\tN%d: (%d, %d, %d)\t", i, neighborDetails[i][0], neighborDetails[i][1], neighborDetails[i][2]);
+                    printf("IP: %s | MAC: %s\n", neighborIP[i], neighborMAC[i]);
+                }
+            }
+            printf("\tMessages from Node%02d: %d\n", sourceRank, messageCount[sourceRank]);
         }
         printf("\n");
         currentIteration++;
