@@ -99,13 +99,13 @@ int slave(MPI_Comm station_comm, int rank, int size){
             }
         }
 
-        // for(int i=0 ; i<4 ; i++){
-        //     printf("IP: %s MAC: %s\n", neighborIP[i], neighborMAC[i]);
-        // }
+        // Get the event time to calculate communication time
+        double eventStartTime = MPI_Wtime();
 
         // Pack all the info needed to be sent to the base station
+        MPI_Pack(&eventStartTime, 1, MPI_DOUBLE, packbuf, buffsize, &position, MPI_COMM_WORLD);
         MPI_Pack(&temperature, 1, MPI_INT, packbuf, buffsize, &position, MPI_COMM_WORLD);
-        MPI_Pack(alertTime, datesize, MPI_CHAR, packbuf, buffsize, &position, MPI_COMM_WORLD);
+        MPI_Pack(&alertTime, datesize, MPI_CHAR, packbuf, buffsize, &position, MPI_COMM_WORLD);
         MPI_Pack(&coord, 2, MPI_INT, packbuf, buffsize, &position, MPI_COMM_WORLD);
         MPI_Pack(&nodeIPMAC, 40, MPI_CHAR, packbuf, buffsize, &position, MPI_COMM_WORLD);
         MPI_Pack(&neighborDetails, 12, MPI_INT, packbuf, buffsize, &position, MPI_COMM_WORLD);

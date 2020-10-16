@@ -31,6 +31,7 @@ int    datesize        = 30;
 int    TEMP_LOW        = 60;
 int    TEMP_HIGH       = 100;
 int    TEMP_THRESHOLD  = 80;
+int    MATCH_RANGE     = 5;
 
 double iterationSleep  = 1;
 int    cummulativeSeed = 1;
@@ -51,7 +52,7 @@ int main(int argc, char *argv[]){
     stationRank = size-1;
 
     // Assign a simulated IP address to each node
-    snprintf(address, 20, "182.253.250.%d", 50+rank);
+    snprintf(address, 20, "182.253.250.%d", rank);
     
     // Check that there are 3 command arguments (main, rows, columns) and that row * column + 1 = size
     // Note: We have chose to let all processes calculate the error value instead of just root node

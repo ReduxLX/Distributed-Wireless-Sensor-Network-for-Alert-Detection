@@ -29,6 +29,7 @@ extern int    datesize;
 extern int    TEMP_LOW;
 extern int    TEMP_HIGH;
 extern int    TEMP_THRESHOLD;
+extern int    MATCH_RANGE;
 
 extern double iterationSleep;
 extern int    cummulativeSeed;
@@ -46,6 +47,8 @@ void master(int size){
     startSatellite();
 
     int  currentIteration = 0;
+    int  neighborMatches;
+    double eventStartTime;
     int  messageCount[(size-1)];
     memset(messageCount, 0, (size-1)*sizeof(int));
     char logTime[datesize];
@@ -62,9 +65,11 @@ void master(int size){
         printf("Iteration %d\n", currentIteration);
         for(int i=0; i < size - 1; i++){
             position = 0;
+            neighborMatches = 0;
             // printf("Rank %d Position: %d\n", 20, position);
             MPI_Recv(packbuf, buffsize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
 
+            MPI_Unpack(packbuf, buffsize, &position, &eventStartTime, 1, MPI_DOUBLE, MPI_COMM_WORLD);
             MPI_Unpack(packbuf, buffsize, &position, &sensorTemp, 1, MPI_INT, MPI_COMM_WORLD);
             MPI_Unpack(packbuf, buffsize, &position, &alertTime, datesize, MPI_CHAR, MPI_COMM_WORLD);
             MPI_Unpack(packbuf, buffsize, &position, &alertNode, 2, MPI_INT, MPI_COMM_WORLD);
@@ -73,6 +78,8 @@ void master(int size){
             MPI_Unpack(packbuf, buffsize, &position, &neighborIP, 80, MPI_CHAR, MPI_COMM_WORLD);
             MPI_Unpack(packbuf, buffsize, &position, &neighborMAC, 80, MPI_CHAR, MPI_COMM_WORLD);
             
+            // Calcualte the communication time
+		    double communicationTime =  MPI_Wtime() - eventStartTime;
             int sourceRank = status.MPI_SOURCE;
             getTimeStamp(logTime);
             messageCount[sourceRank] += 1; 
@@ -82,11 +89,15 @@ void master(int size){
             printf("\tNeighbors:\n");
             for(int i=0 ; i<4 ; i++){
                 if(neighborDetails[i][0] != -1){
-                    printf("\tN%d: (%d, %d, %d)\t", i, neighborDetails[i][0], neighborDetails[i][1], neighborDetails[i][2]);
+                    int neigborIP = neighborDetails[i][0], neigborMAC = neighborDetails[i][1], neighborTemp = neighborDetails[i][2];
+                    if(neighborTemp >= sensorTemp-MATCH_RANGE && neighborTemp <= sensorTemp+MATCH_RANGE) neighborMatches++;
+                    printf("\tN%d: (%d, %d, %d)\t", i, neigborIP, neigborMAC, neighborTemp);
                     printf("IP: %s | MAC: %s\n", neighborIP[i], neighborMAC[i]);
                 }
             }
-            printf("\tMessages from Node%02d: %d\n", sourceRank, messageCount[sourceRank]);
+            printf("\tCommunication Time %f\n:", communicationTime);
+            printf("\tTotal Messages from Node%02d: %d\n", sourceRank, messageCount[sourceRank]);
+            printf("\tNumber of adjacent matches to reporting node: %d\n", neighborMatches);
         }
         printf("\n");
         currentIteration++;
