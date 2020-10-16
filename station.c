@@ -36,7 +36,7 @@ extern int    cummulativeSeed;
 extern char   address;
 extern char   MAC;
 
-void startSatellite();
+char satelliteTime[30];
 
 void master(int size){
     // Initialize local variables
@@ -44,7 +44,16 @@ void master(int size){
     int position;
     MPI_Status status;
 
-    startSatellite();
+    // Initialize a 2D array of row*column to store satellite temperatures
+    int satelliteArray[row][column];
+    for (int i = 0; i<row; i++){
+        for (int j = 0; j<column; j++)
+            satelliteArray[i][j] = 0;
+    }
+
+    // Start the satellite posix thread and pass in satelliteTemp array
+    pthread_t satelliteThread;
+    pthread_create(&satelliteThread, NULL, satellite, &satelliteArray);
 
     int  currentIteration = 0;
     int  neighborMatches;
@@ -81,11 +90,13 @@ void master(int size){
             // Calcualte the communication time
 		    double communicationTime =  MPI_Wtime() - eventStartTime;
             int sourceRank = status.MPI_SOURCE;
+            int sourceX = alertNode[0], sourceY = alertNode[1];
+            int satelliteTemp = satelliteArray[sourceX][sourceY];
             getTimeStamp(logTime);
             messageCount[sourceRank] += 1; 
             printf("\nNode %02d has temperature %d\n",sourceRank, sensorTemp);
             printf("\tAlert Time: %s | Logged Time: %s\n",alertTime, logTime);
-            printf("\tNode Coords: (%d, %d) IP: %s | MAC: %s\n",alertNode[0], alertNode[1], nodeIPMAC[0], nodeIPMAC[1]);
+            printf("\tNode Coords: (%d, %d) IP: %s | MAC: %s\n",sourceX, sourceY, nodeIPMAC[0], nodeIPMAC[1]);
             printf("\tNeighbors:\n");
             for(int i=0 ; i<4 ; i++){
                 if(neighborDetails[i][0] != -1){
@@ -95,7 +106,10 @@ void master(int size){
                     printf("IP: %s | MAC: %s\n", neighborIP[i], neighborMAC[i]);
                 }
             }
-            printf("\tCommunication Time %f\n:", communicationTime);
+            printf("\tInfrared Satellite Reporting Time: %s\n", satelliteTime);
+            printf("\tInfrared Satellite Reporting (Celsius): %d\n", satelliteTemp);
+            printf("\tInfrared Satellite Reporting Coord: (%d, %d)\n", sourceX, sourceY);
+            printf("\tCommunication Time: %f\n", communicationTime);
             printf("\tTotal Messages from Node%02d: %d\n", sourceRank, messageCount[sourceRank]);
             printf("\tNumber of adjacent matches to reporting node: %d\n", neighborMatches);
         }
@@ -122,22 +136,11 @@ void* satellite(void* arg){
                 array[i][j] = sat_temperature;
             }
         }
+        getTimeStamp(satelliteTime);
         printf("Satellite Iteration %d\n", iteration);
         iteration++;
     }
 }
 
-void startSatellite(){
-    // Initialize a 2D array of row*column to store satellite temperatures
-    int satelliteTemp[row][column];
-    for (int i = 0; i<row; i++){
-        for (int j = 0; j<column; j++)
-            satelliteTemp[i][j] = 0;
-    }
-
-    // Start the satellite posix thread and pass in satelliteTemp array
-    pthread_t satelliteThread;
-    pthread_create(&satelliteThread, NULL, satellite, &satelliteTemp);
-}
 
 
