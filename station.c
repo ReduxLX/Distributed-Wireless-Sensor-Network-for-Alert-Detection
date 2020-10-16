@@ -23,6 +23,7 @@ Authors [A~Z]:
 extern int    stationRank;
 extern int    row, column;
 extern int    maxIterations;
+extern int    buffsize;
 
 extern int    TEMP_LOW;
 extern int    TEMP_HIGH;
@@ -33,8 +34,45 @@ extern int    cummulativeSeed;
 extern char   address;
 extern char   MAC;
 
-int randomValue(int low, int high, int rank);
+int  randomValue(int low, int high, int rank);
 void getTimeStamp(char* buf, int size);
+void startSatellite();
+
+void master(int size){
+    // Initialize local variables
+    int sensorTemp;
+    int position;
+    MPI_Status status;
+
+    startSatellite();
+
+    // Listen to incoming requests sent by wsn nodes
+    int currentIteration = 0;
+    char timeStamp[30];
+    
+    while(currentIteration < maxIterations){
+        char packbuf[buffsize];
+        printf("Iteration %d\n", currentIteration);
+        for(int i=0; i < size - 1; i++){
+            position = 0;
+            // printf("Rank %d Position: %d\n", 20, position);
+            MPI_Recv(packbuf, buffsize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+            MPI_Unpack(packbuf, buffsize, &position, &sensorTemp, 1, MPI_INT, MPI_COMM_WORLD);
+            getTimeStamp(timeStamp, 30);
+            printf("%s - Node %02d has temperature %d\n",timeStamp, status.MPI_SOURCE, sensorTemp);
+        }
+        printf("\n");
+        currentIteration++;
+        sleep(iterationSleep);
+    }
+
+    // for (int i = 0; i < row; i++) {
+    //     for (int j = 0; j < column; j++) {
+    //         printf("%d ", satelliteTemp[i][j]);
+    //     }
+    //     printf("\n");
+    // }
+}
 
 void* satellite(void* arg){
     int (*array)[column] = arg;
@@ -51,9 +89,7 @@ void* satellite(void* arg){
     }
 }
 
-void master(MPI_Comm world_comm, int size){
-    MPI_Status status;
-    int sensorTemp;
+void startSatellite(){
     // Initialize a 2D array of row*column to store satellite temperatures
     int satelliteTemp[row][column];
     for (int i = 0; i<row; i++){
@@ -64,25 +100,6 @@ void master(MPI_Comm world_comm, int size){
     // Start the satellite posix thread and pass in satelliteTemp array
     pthread_t satelliteThread;
     pthread_create(&satelliteThread, NULL, satellite, &satelliteTemp);
-
-    // Listen to incoming requests sent by wsn nodes
-    int currentIteration = 0;
-    char timeStamp[30];
-    while(currentIteration < maxIterations){
-        printf("Iteration %d\n", currentIteration);
-        for(int i=0; i < size - 1; i++){
-            MPI_Recv(&sensorTemp, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, world_comm, &status);
-		    getTimeStamp(timeStamp, 30);
-            printf("%s - Node %02d has temperature %d\n",timeStamp, status.MPI_SOURCE, sensorTemp);
-        }
-        printf("\n");
-        currentIteration++;
-        sleep(iterationSleep);
-    }
-    for (int i = 0; i < row; i++) {
-        for (int j = 0; j < column; j++) {
-            printf("%d ", satelliteTemp[i][j]);
-        }
-        printf("\n");
-    }
 }
+
+

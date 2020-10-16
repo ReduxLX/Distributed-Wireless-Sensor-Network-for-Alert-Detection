@@ -25,6 +25,7 @@ Authors [A~Z]:
 int    stationRank;
 int    row, column;
 int    maxIterations   = 2;
+int    buffsize         = 1000;
 
 int    TEMP_LOW        = 60;
 int    TEMP_HIGH       = 100;
@@ -81,10 +82,10 @@ int main(int argc, char *argv[]){
 
     // Run specific methods based on node's role
     if (rank == stationRank){
-        master(MPI_COMM_WORLD, size);
+        master(size);
     }
     else {
-	    slave(MPI_COMM_WORLD, station_comm, rank, size); 
+	    slave(station_comm, rank, size); 
     }
 
     // Finalize the MPI program

@@ -27,6 +27,7 @@ Authors [A~Z]:
 extern int    stationRank;
 extern int    row, column;
 extern int    maxIterations;
+extern int    buffsize;
 
 extern int    TEMP_LOW;
 extern int    TEMP_HIGH;
@@ -40,16 +41,17 @@ extern char   MAC;
 int randomValue(int low, int high, int rank);
 void getTimeStamp(char* buf, int size);
 
-int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size){
+int slave(MPI_Comm station_comm, int rank, int size){
     sleep(1);
     MPI_Comm grid_comm;
-    int ndims = 2;
-    int reorder = 1;
-    int dims[2] = {row, column};
-    int period[2] = {0, 0};
-    int coord[2];
-    int neighbors[4];
-    int nrows, ncols;
+    int  ndims = 2;
+    int  reorder = 1;
+    int  dims[2] = {row, column};
+    int  period[2] = {0, 0};
+    int  coord[2];
+    int  neighbors[4];
+    int  nrows, ncols;
+    char packbuf[buffsize];
     // MPI_Dims_create finds the best dimension for the cartesian grid 
     MPI_Dims_create(size-1, ndims, dims);
 
@@ -69,10 +71,15 @@ int slave(MPI_Comm world_comm, MPI_Comm station_comm, int rank, int size){
     int currentIteration = 0;
 
     while(currentIteration < maxIterations){
+        // Initialize the pack buffer with zeros
+        int position = 0;
+
         // Generate temperature and send to station
+        // printf("Rank %d Position: %d\n", rank, position);
         int temperature = randomValue(TEMP_LOW, TEMP_HIGH, rank);
-        // printf("Rank %d: %d\n", rank, temperature);
-        MPI_Send(&temperature, 1, MPI_INT, stationRank, 0, world_comm);
+        MPI_Pack(&temperature, 1, MPI_INT, packbuf, buffsize, &position, MPI_COMM_WORLD);
+        // printf("Rank %d Position: %d\n", rank, position);
+        MPI_Send(packbuf, buffsize, MPI_PACKED, stationRank, 0, MPI_COMM_WORLD);
         currentIteration++;
         cummulativeSeed = 1;
         sleep(iterationSleep);

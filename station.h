@@ -6,5 +6,7 @@ Authors [A~Z]:
 */
 
 // Function definitions for station.h
-void master(MPI_Comm world_comm, int size);
+void* satellite(void* arg);
+void startSatellite();
+void master(int size);
 
