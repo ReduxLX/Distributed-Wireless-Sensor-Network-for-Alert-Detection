@@ -28,6 +28,7 @@ extern int    stationRank;
 extern int    row, column;
 extern int    maxIterations;
 extern int    buffsize;
+extern int    datesize;
 
 extern int    TEMP_LOW;
 extern int    TEMP_HIGH;
@@ -37,9 +38,6 @@ extern double iterationSleep;
 extern int    cummulativeSeed;
 extern char   address;
 extern char   MAC;
-
-int randomValue(int low, int high, int rank);
-void getTimeStamp(char* buf, int size);
 
 int slave(MPI_Comm station_comm, int rank, int size){
     sleep(1);
@@ -77,8 +75,11 @@ int slave(MPI_Comm station_comm, int rank, int size){
         // Generate temperature and send to station
         // printf("Rank %d Position: %d\n", rank, position);
         int temperature = randomValue(TEMP_LOW, TEMP_HIGH, rank);
+        char alertTime[datesize];
+        getTimeStamp(alertTime);
         MPI_Pack(&temperature, 1, MPI_INT, packbuf, buffsize, &position, MPI_COMM_WORLD);
-        // printf("Rank %d Position: %d\n", rank, position);
+        MPI_Pack(alertTime, datesize, MPI_CHAR, packbuf, buffsize, &position, MPI_COMM_WORLD);
+        printf("Rank %d Position: %d\n", rank, position);
         MPI_Send(packbuf, buffsize, MPI_PACKED, stationRank, 0, MPI_COMM_WORLD);
         currentIteration++;
         cummulativeSeed = 1;

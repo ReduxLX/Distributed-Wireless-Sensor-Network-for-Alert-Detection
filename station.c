@@ -24,6 +24,7 @@ extern int    stationRank;
 extern int    row, column;
 extern int    maxIterations;
 extern int    buffsize;
+extern int    datesize;
 
 extern int    TEMP_LOW;
 extern int    TEMP_HIGH;
@@ -34,8 +35,6 @@ extern int    cummulativeSeed;
 extern char   address;
 extern char   MAC;
 
-int  randomValue(int low, int high, int rank);
-void getTimeStamp(char* buf, int size);
 void startSatellite();
 
 void master(int size){
@@ -48,7 +47,8 @@ void master(int size){
 
     // Listen to incoming requests sent by wsn nodes
     int currentIteration = 0;
-    char timeStamp[30];
+    char logTime[datesize];
+    char alertTime[datesize];
     
     while(currentIteration < maxIterations){
         char packbuf[buffsize];
@@ -58,8 +58,10 @@ void master(int size){
             // printf("Rank %d Position: %d\n", 20, position);
             MPI_Recv(packbuf, buffsize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
             MPI_Unpack(packbuf, buffsize, &position, &sensorTemp, 1, MPI_INT, MPI_COMM_WORLD);
-            getTimeStamp(timeStamp, 30);
-            printf("%s - Node %02d has temperature %d\n",timeStamp, status.MPI_SOURCE, sensorTemp);
+            MPI_Unpack(packbuf, buffsize, &position, &alertTime, datesize, MPI_CHAR, MPI_COMM_WORLD);
+            getTimeStamp(logTime);
+            printf("%s - Node %02d has temperature %d\n",logTime, status.MPI_SOURCE, sensorTemp);
+            printf("Alert Time %s\n",alertTime);
         }
         printf("\n");
         currentIteration++;

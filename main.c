@@ -25,7 +25,8 @@ Authors [A~Z]:
 int    stationRank;
 int    row, column;
 int    maxIterations   = 2;
-int    buffsize         = 1000;
+int    buffsize        = 200;
+int    datesize        = 30;
 
 int    TEMP_LOW        = 60;
 int    TEMP_HIGH       = 100;
@@ -40,6 +41,7 @@ char   MAC[]           = "fc:3f:db:8f:dc:15";
 int main(int argc, char *argv[]){
     int rank, size;
     double start_time = MPI_Wtime();
+
     // Initialize the MPI
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -108,7 +110,7 @@ int randomValue(int low, int high, int rank){
     return randomVal;
 }
 
-void getTimeStamp(char* buf, int size){
+void getTimeStamp(char* buf){
 	struct tm ts;
 	time_t currentTime;
 
@@ -117,6 +119,6 @@ void getTimeStamp(char* buf, int size){
     ts = *localtime(&currentTime);
 
 	// Convert the time to date time string
-    strftime(buf, size, "%a %Y-%m-%d %H:%M:%S", &ts);
+    strftime(buf, datesize, "%a %Y-%m-%d %H:%M:%S", &ts);
 }
 

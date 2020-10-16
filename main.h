@@ -7,6 +7,6 @@ Authors [A~Z]:
 
 // Functions Definitions for the main.c file
 int randomValue(int low, int high, int rank);
-void getTimeStamp(char* buf, int size);
+void getTimeStamp(char* buf);
 
 
