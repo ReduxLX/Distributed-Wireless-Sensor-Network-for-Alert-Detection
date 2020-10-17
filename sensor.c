@@ -50,6 +50,7 @@ int slave(MPI_Comm station_comm, int rank, int size){
     int  neighbors[4];
     int  nrows, ncols;
     char packbuf[buffsize];
+    char packbuf2[buffsize];
     // MPI_Dims_create finds the best dimension for the cartesian grid 
     MPI_Dims_create(size-1, ndims, dims);
 
@@ -74,33 +75,43 @@ int slave(MPI_Comm station_comm, int rank, int size){
 
         // Generate temperature and send to station
         int temperature = randomValue(TEMP_LOW, TEMP_HIGH, rank);
+
+        // Get neighbor's temperature, IP and MAC addresses
+        MPI_Status status[3];
+        int  neighborTemp[4] = {-1, -1, -1, -1};
+        char neighborIP[4][20];
+        char neighborMAC[4][20];
+        for(int i=0 ; i<4 ; i++){
+            MPI_Send(&temperature, 1, MPI_INT, neighbors[i], 0, MPI_COMM_WORLD);
+            MPI_Send(&address, 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
+            MPI_Send(&MAC, 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
+            MPI_Recv(&neighborTemp[i], 1, MPI_INT, neighbors[i], 0, MPI_COMM_WORLD, &status[0]);
+            MPI_Recv(&neighborIP[i], 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[1]);
+            MPI_Recv(&neighborMAC[i], 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[2]);
+        }
+
         char alertTime[datesize];
         char nodeIPMAC[2][20];
         strncpy(nodeIPMAC[0], &address, 20);
         strncpy(nodeIPMAC[1], &MAC, 20);
 
         getTimeStamp(alertTime);
-        int neighborDetails[4][3];
-        char neighborIP[4][20];
-        char neighborMAC[4][20];
+        int  neighborDetails[4][3];
 
         for(int i=0 ; i<4 ; i++){
             int neighborCoord[2];
             neighborDetails[i][0] = neighborDetails[i][1] = neighborDetails[i][2] = -1;
-            strncpy(neighborIP[i], "-1", 20);
-            strncpy(neighborMAC[i], "-1", 20);
             if(neighbors[i] != -2){
                 MPI_Cart_coords(grid_comm, neighbors[i], ndims, neighborCoord);
                 neighborDetails[i][0] = neighborCoord[0];
                 neighborDetails[i][1] = neighborCoord[1];
-                neighborDetails[i][2] = 100;
-                strncpy(neighborIP[i], &address, 20);
-                strncpy(neighborMAC[i], &MAC, 20);
+                neighborDetails[i][2] = neighborTemp[i];
             }
         }
 
         // Get the event time to calculate communication time
         double eventStartTime = MPI_Wtime();
+        position = 0;
 
         // Pack all the info needed to be sent to the base station
         MPI_Pack(&eventStartTime, 1, MPI_DOUBLE, packbuf, buffsize, &position, MPI_COMM_WORLD);
@@ -120,22 +131,6 @@ int slave(MPI_Comm station_comm, int rank, int size){
     }
 
 
-    // If temperature exceeds 80 degrees, send a message to all non-null adjacent neighbors
-    // Neighbors will send back their last recorded temperature
-    // if(temperature > TEMP_THRESHOLD){
-    //     for(int i=0 ; i<4 ; i++){
-    //         MPI_Send(&rank, 1, MPI_INT, neighbors[i], REQUEST_TAG, grid_comm);
-    //     }
-    // }
-    // // Else listen to any requests and send back temperature if asked
-    // else{
-    //     int neighbor_rank = 0;
-    //     MPI_Status  receive_status[4];
-    //     for(int i=0 ; i<4 ; i++){
-    //         MPI_Recv(&neighbor_rank, 1, MPI_INT, MPI_ANY_SOURCE, REQUEST_TAG, grid_comm);
-    //         MPI_Send(&temperature, 1, MPI_INT, neighbor_rank, REPLY_TAG, grid_comm, receive_status[i]);
-    //     }
-    // }
     MPI_Comm_free(&grid_comm);
 	return 0;
 }
