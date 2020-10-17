@@ -25,6 +25,7 @@ extern int    row, column;
 extern int    maxIterations;
 extern int    buffsize;
 extern int    datesize;
+extern int    userstop;
 
 extern int    TEMP_LOW;
 extern int    TEMP_HIGH;
@@ -37,6 +38,9 @@ extern char   address;
 extern char   MAC;
 
 char satelliteTime[30];
+int  satelliteIteration = 0;
+int  stopstation = 0;
+int checkForExitSignal();
 
 void master(int size){
     // Initialize local variables
@@ -67,15 +71,45 @@ void master(int size){
     int  neighborDetails[4][3];
     char neighborIP[4][20];
     char neighborMAC[4][20];
-    
+
     // Listen to incoming requests sent by wsn nodes
     while(maxIterations == -1 || currentIteration < maxIterations){
+        printf("STATION max iterations %d\n", maxIterations);
+        
+        char userInput[10];
+        FILE *f = fopen("commands", "r");
+        fgets(userInput, 10, f);
+        strtok(userInput, "\n");
+        if(strcmp(userInput,"-1")==0){
+            printf("User Terminating Input Detected");
+            userstop = 1;
+            int totalSensors = (row*column);
+            MPI_Request send_request[totalSensors];
+            MPI_Status receive_status[totalSensors];
+            int numberOfReq = 0;
+            // Send a message to each node to end the iteration
+            for (int i = 0; i < totalSensors; i++){
+                printf("Sensor %d\n", i);
+                MPI_Isend(&userstop, 1, MPI_INT, i, 3, MPI_COMM_WORLD, &send_request[numberOfReq]);
+                numberOfReq+=1;
+            }
+            // Wait until all messeges are sents
+            MPI_Waitall(numberOfReq , send_request, receive_status);
+            break;
+        }
+
+        // if(stopstation == 1){
+        //     pthread_exit(0);
+        //     break;
+        // }
+        
         char packbuf[buffsize];
         printf("Iteration %d\n", currentIteration);
         for(int i=0; i < size - 1; i++){
             position = 0;
             neighborMatches = 0;
             // printf("Rank %d Position: %d\n", 20, position);
+            printf("Wait for receive");
             MPI_Recv(packbuf, buffsize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
 
             MPI_Unpack(packbuf, buffsize, &position, &eventStartTime, 1, MPI_DOUBLE, MPI_COMM_WORLD);
@@ -121,8 +155,8 @@ void master(int size){
 
 void* satellite(void* arg){
     int (*array)[column] = arg;
-    int iteration = 0;
-    while(maxIterations == -1 || iteration < maxIterations){
+    while(maxIterations == -1 || satelliteIteration < maxIterations){
+        printf("SATELLITE max iterations %d\n", maxIterations);
         for (int i = 0; i<row; i++){
             for (int j = 0; j<column; j++){
                 int sat_temperature = randomValue(TEMP_LOW, TEMP_HIGH, stationRank);
@@ -130,11 +164,37 @@ void* satellite(void* arg){
             }
         }
         getTimeStamp(satelliteTime);
-        printf("Satellite Iteration %d\n", iteration);
-        iteration++;
+        printf("Satellite Iteration %d\n", satelliteIteration);
+        satelliteIteration++;
         sleep(iterationSleep);
     }
 }
 
+int checkForExitSignal(){
+    char userInput[10];
+    FILE *f = fopen("commands", "r");
+    fgets(userInput, 10, f);
+    strtok(userInput, "\n");
+    if(strcmp(userInput,"-1")==0){
+        printf("User Terminating Input Detected");
+        userstop = 1;
+        int totalSensors = (row*column);
+        MPI_Request send_request[totalSensors];
+        MPI_Status receive_status[totalSensors];
+        int numberOfReq = 0;
+        // Send a message to each node to end the iteration
+        for (int i = 0; i < totalSensors; i++){
+            printf("Sensor %d\n", i);
+            MPI_Isend(&userstop, 1, MPI_INT, i, 3, MPI_COMM_WORLD, &send_request[numberOfReq]);
+            numberOfReq+=1;
+        }
+        // Wait until all messeges are sents
+	    MPI_Waitall(numberOfReq , send_request, receive_status);
+        printf("xxxDEADDEADDEADDEAD\n");
+        stopstation = 1;
+        return 1;
+    }
+    return 0;
+}
 
 

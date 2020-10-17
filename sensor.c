@@ -29,6 +29,7 @@ extern int    row, column;
 extern int    maxIterations;
 extern int    buffsize;
 extern int    datesize;
+extern int    userstop;
 
 extern int    TEMP_LOW;
 extern int    TEMP_HIGH;
@@ -69,7 +70,12 @@ int slave(MPI_Comm station_comm, int rank, int size){
 
     int currentIteration = 0;
 
+    // Get the non blocking recieve from the POSIX thread
+    MPI_Request temp_req;
+	MPI_Irecv(&userstop, 1, MPI_INT, stationRank, 3, MPI_COMM_WORLD, &temp_req);
+
     while(maxIterations == -1 || currentIteration < maxIterations){
+        printf("SENSOR %d user stop %d\n", rank, userstop);
         // Initialize the pack buffer with zeros
         int position = 0;
 
@@ -127,6 +133,9 @@ int slave(MPI_Comm station_comm, int rank, int size){
 
         currentIteration++;
         cummulativeSeed = 1;
+        if (userstop == 1){
+			break;
+		}
         sleep(iterationSleep);
     }
 

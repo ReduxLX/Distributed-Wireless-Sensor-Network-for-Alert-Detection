@@ -27,6 +27,7 @@ int    row, column;
 int    maxIterations   = -1;
 int    buffsize        = 500;
 int    datesize        = 30;
+int    userstop        = 0;
 
 int    TEMP_LOW        = 60;
 int    TEMP_HIGH       = 100;
@@ -68,7 +69,7 @@ int main(int argc, char *argv[]){
         row = atoi(argv[1]);
         column = atoi(argv[2]);
         if(argc == 4) maxIterations = atoi(argv[3]);
-        
+
         int supportedSize = row * column +1;
         if(supportedSize != size){
             error = -2;
