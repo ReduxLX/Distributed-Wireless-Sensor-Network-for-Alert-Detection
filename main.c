@@ -24,7 +24,7 @@ Authors [A~Z]:
 /* GLOBAL VARIABLES */
 int    stationRank;
 int    row, column;
-int    maxIterations   = 2;
+int    maxIterations   = -1;
 int    buffsize        = 500;
 int    datesize        = 30;
 
@@ -58,13 +58,17 @@ int main(int argc, char *argv[]){
     // Note: We have chose to let all processes calculate the error value instead of just root node
     // because the alternative involves root node broadcasting error to all other nodes
     int error = 0;
-    if(argc != 3){
-        if(rank == stationRank) 
-            printf("Invalid number of arguments\nFormat should be: mpirun -np <total_processes> -oversubscribe main <row> <column>\n");
+    if(argc != 3 && argc != 4){
+        if(rank == stationRank){
+            printf("Invalid number of arguments\nFormat should be: mpirun -np <total_processes> -oversubscribe main <row> <column>");
+            printf("Alternatively to run for x iterations only: mpirun -np <total_processes> -oversubscribe main <row> <column> <x>\n");
+        }
         error = -1;
     }else{
         row = atoi(argv[1]);
         column = atoi(argv[2]);
+        if(argc == 4) maxIterations = atoi(argv[3]);
+        
         int supportedSize = row * column +1;
         if(supportedSize != size){
             error = -2;

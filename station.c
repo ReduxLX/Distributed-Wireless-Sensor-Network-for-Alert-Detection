@@ -69,7 +69,7 @@ void master(int size){
     char neighborMAC[4][20];
     
     // Listen to incoming requests sent by wsn nodes
-    while(currentIteration < maxIterations){
+    while(maxIterations == -1 || currentIteration < maxIterations){
         char packbuf[buffsize];
         printf("Iteration %d\n", currentIteration);
         for(int i=0; i < size - 1; i++){
@@ -117,19 +117,12 @@ void master(int size){
         currentIteration++;
         sleep(iterationSleep);
     }
-
-    // for (int i = 0; i < row; i++) {
-    //     for (int j = 0; j < column; j++) {
-    //         printf("%d ", satelliteTemp[i][j]);
-    //     }
-    //     printf("\n");
-    // }
 }
 
 void* satellite(void* arg){
     int (*array)[column] = arg;
     int iteration = 0;
-    while(iteration < maxIterations){
+    while(maxIterations == -1 || iteration < maxIterations){
         for (int i = 0; i<row; i++){
             for (int j = 0; j<column; j++){
                 int sat_temperature = randomValue(TEMP_LOW, TEMP_HIGH, stationRank);
@@ -139,6 +132,7 @@ void* satellite(void* arg){
         getTimeStamp(satelliteTime);
         printf("Satellite Iteration %d\n", iteration);
         iteration++;
+        sleep(iterationSleep);
     }
 }
 

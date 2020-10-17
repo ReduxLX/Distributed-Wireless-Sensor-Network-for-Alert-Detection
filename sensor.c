@@ -69,7 +69,7 @@ int slave(MPI_Comm station_comm, int rank, int size){
 
     int currentIteration = 0;
 
-    while(currentIteration < maxIterations){
+    while(maxIterations == -1 || currentIteration < maxIterations){
         // Initialize the pack buffer with zeros
         int position = 0;
 
