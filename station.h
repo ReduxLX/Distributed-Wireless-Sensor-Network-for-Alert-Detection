@@ -7,5 +7,6 @@ Authors [A~Z]:
 
 // Function definitions for station.h
 void* satellite(void* arg);
-void master(int size);
+void master();
+int checkForStopSignal();
 

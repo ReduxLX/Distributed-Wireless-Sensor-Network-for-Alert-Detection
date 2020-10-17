@@ -10,4 +10,4 @@ Authors [A~Z]:
 #define DISP 1
 
 // Function definitions for sensor.h
-int slave(MPI_Comm station_comm, int rank, int size);
+int slave(MPI_Comm station_comm);

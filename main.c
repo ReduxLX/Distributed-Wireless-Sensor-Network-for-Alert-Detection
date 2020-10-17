@@ -24,25 +24,18 @@ Authors [A~Z]:
 /* GLOBAL VARIABLES */
 int    stationRank;
 int    row, column;
+int    rank, size;
+double startTime;
 int    maxIterations   = -1;
-int    buffsize        = 500;
-int    datesize        = 30;
-int    userstop        = 0;
-
-int    TEMP_LOW        = 60;
-int    TEMP_HIGH       = 100;
-int    TEMP_THRESHOLD  = 80;
-int    MATCH_RANGE     = 5;
-
-double iterationSleep  = 1;
+int    stopSignal      = 0;
 int    cummulativeSeed = 1;
-char   address[20];
+char   IP_address[20];
 char   MAC[]           = "fc:3f:db:8f:dc:15";
 
 
 int main(int argc, char *argv[]){
-    int rank, size;
-    double start_time = MPI_Wtime();
+    // Record the start of the simulation
+    startTime = MPI_Wtime();
 
     // Initialize the MPI
     MPI_Init(&argc, &argv);
@@ -53,7 +46,7 @@ int main(int argc, char *argv[]){
     stationRank = size-1;
 
     // Assign a simulated IP address to each node
-    snprintf(address, 20, "182.253.250.%d", rank);
+    snprintf(IP_address, 20, "182.253.250.%d", rank);
     
     // Check that there are 3 command arguments (main, rows, columns) and that row * column + 1 = size
     // Note: We have chose to let all processes calculate the error value instead of just root node
@@ -78,7 +71,7 @@ int main(int argc, char *argv[]){
         }
     }
 
-    // Exit gracefully using MPI_Finalize() and not MPI_Abort()
+    // Exit gracefully using MPI_Finalize() (and not MPI_Abort())
     if(error != 0){
         MPI_Finalize();
         return 0;
@@ -90,10 +83,10 @@ int main(int argc, char *argv[]){
 
     // Run specific methods based on node's role
     if (rank == stationRank){
-        master(size);
+        master();
     }
     else {
-	    slave(station_comm, rank, size); 
+	    slave(station_comm); 
     }
 
     // Finalize the MPI program
@@ -116,7 +109,10 @@ int randomValue(int low, int high, int rank){
     return randomVal;
 }
 
-void getTimeStamp(char* buf){
+/* Generates the current timestamp in the form of string "DayName Year-Month-Day Hour:Minute:Second"
+*  and assigns this to the char pointer passed in
+*/
+void getTimeStamp(char* dateStr){
 	struct tm ts;
 	time_t currentTime;
 
@@ -125,6 +121,6 @@ void getTimeStamp(char* buf){
     ts = *localtime(&currentTime);
 
 	// Convert the time to date time string
-    strftime(buf, datesize, "%a %Y-%m-%d %H:%M:%S", &ts);
+    strftime(dateStr, dateSize, "%a %Y-%m-%d %H:%M:%S", &ts);
 }
 

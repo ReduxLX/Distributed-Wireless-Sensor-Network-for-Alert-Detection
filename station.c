@@ -22,31 +22,23 @@ Authors [A~Z]:
 /* Import Global Variables */
 extern int    stationRank;
 extern int    row, column;
+extern int    rank, size;
+extern double startTime;
 extern int    maxIterations;
-extern int    buffsize;
-extern int    datesize;
-extern int    userstop;
+extern int    stopSignal;
 
-extern int    TEMP_LOW;
-extern int    TEMP_HIGH;
-extern int    TEMP_THRESHOLD;
-extern int    MATCH_RANGE;
-
-extern double iterationSleep;
-extern int    cummulativeSeed;
-extern char   address;
-extern char   MAC;
-
+/* Initialize new Global Variables */
 char satelliteTime[30];
 int  satelliteIteration = 0;
-int  stopstation = 0;
-int checkForExitSignal();
 
-void master(int size){
-    // Initialize local variables
-    int sensorTemp;
-    int position;
-    MPI_Status status;
+int checkForStopSignal();
+
+void master(){
+    // Initialize end-of-report counters
+    int currentIteration = 0;
+    int totalEvents = 0;
+	int trueEvents = 0;
+    int falseEvents = 0;
 
     // Initialize a 2D array of row*column to store satellite temperatures
     int satelliteArray[row][column];
@@ -59,75 +51,61 @@ void master(int size){
     pthread_t satelliteThread;
     pthread_create(&satelliteThread, NULL, satellite, &satelliteArray);
 
-    int  currentIteration = 0;
-    int  neighborMatches;
+    MPI_Status status;
+    int position;
+
+    // Buffers for packed data (in order of appearance)
     double eventStartTime;
-    int  messageCount[(size-1)];
-    memset(messageCount, 0, (size-1)*sizeof(int));
-    char logTime[datesize];
-    char alertTime[datesize];
+    int sensorTemp;
+    char alertTime[dateSize];
     int  alertNode[2];
     char nodeIPMAC[2][20];
     int  neighborDetails[4][3];
     char neighborIP[4][20];
     char neighborMAC[4][20];
 
+    // Initialize Counters to track neighbors that match temperatures and total message count
+    int  neighborMatches;
+    int  messageCount[(size-1)];
+    memset(messageCount, 0, (size-1)*sizeof(int));
+
     // Listen to incoming requests sent by wsn nodes
     while(maxIterations == -1 || currentIteration < maxIterations){
-        printf("STATION max iterations %d\n", maxIterations);
-        
-        char userInput[10];
-        FILE *f = fopen("commands", "r");
-        fgets(userInput, 10, f);
-        strtok(userInput, "\n");
-        if(strcmp(userInput,"-1")==0){
-            printf("User Terminating Input Detected");
-            userstop = 1;
-            int totalSensors = (row*column);
-            MPI_Request send_request[totalSensors];
-            MPI_Status receive_status[totalSensors];
-            int numberOfReq = 0;
-            // Send a message to each node to end the iteration
-            for (int i = 0; i < totalSensors; i++){
-                printf("Sensor %d\n", i);
-                MPI_Isend(&userstop, 1, MPI_INT, i, 3, MPI_COMM_WORLD, &send_request[numberOfReq]);
-                numberOfReq+=1;
-            }
-            // Wait until all messeges are sents
-            MPI_Waitall(numberOfReq , send_request, receive_status);
-            break;
-        }
-
-        // if(stopstation == 1){
-        //     pthread_exit(0);
-        //     break;
-        // }
-        
-        char packbuf[buffsize];
         printf("Iteration %d\n", currentIteration);
+        // Check if user has terminated the simulation, break out of loop if yes
+        int stopStation = checkForStopSignal();
+        if(stopStation == 1) break;
+        
+        // Initialize pack buffer
+        char packbuf[packSize];
         for(int i=0; i < size - 1; i++){
             position = 0;
             neighborMatches = 0;
-            // printf("Rank %d Position: %d\n", 20, position);
-            printf("Wait for receive");
-            MPI_Recv(packbuf, buffsize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-
-            MPI_Unpack(packbuf, buffsize, &position, &eventStartTime, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, buffsize, &position, &sensorTemp, 1, MPI_INT, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, buffsize, &position, &alertTime, datesize, MPI_CHAR, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, buffsize, &position, &alertNode, 2, MPI_INT, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, buffsize, &position, &nodeIPMAC, 40, MPI_CHAR, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, buffsize, &position, &neighborDetails, 12, MPI_INT, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, buffsize, &position, &neighborIP, 80, MPI_CHAR, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, buffsize, &position, &neighborMAC, 80, MPI_CHAR, MPI_COMM_WORLD);
+            // Receive and unpack all the data sent by the sensor
+            MPI_Recv(packbuf, packSize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+            MPI_Unpack(packbuf, packSize, &position, &eventStartTime, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, packSize, &position, &sensorTemp, 1, MPI_INT, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, packSize, &position, &alertTime, dateSize, MPI_CHAR, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, packSize, &position, &alertNode, 2, MPI_INT, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, packSize, &position, &nodeIPMAC, 40, MPI_CHAR, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, packSize, &position, &neighborDetails, 12, MPI_INT, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, packSize, &position, &neighborIP, 80, MPI_CHAR, MPI_COMM_WORLD);
+            MPI_Unpack(packbuf, packSize, &position, &neighborMAC, 80, MPI_CHAR, MPI_COMM_WORLD);
             
-            // Calcualte the communication time
+            // Calculate the communication time and get source node's rank, coords and temperature sent
 		    double communicationTime =  MPI_Wtime() - eventStartTime;
             int sourceRank = status.MPI_SOURCE;
             int sourceX = alertNode[0], sourceY = alertNode[1];
             int satelliteTemp = satelliteArray[sourceX][sourceY];
+
+            // Get current timestamp
+            char logTime[dateSize];
             getTimeStamp(logTime);
+
+            // Increment messageCount
             messageCount[sourceRank] += 1; 
+
+            // Log the received information
             printf("\nNode %02d has temperature %d\n",sourceRank, sensorTemp);
             printf("\tAlert Time: %s | Logged Time: %s\n",alertTime, logTime);
             printf("\tNode Coords: (%d, %d) IP: %s | MAC: %s\n",sourceX, sourceY, nodeIPMAC[0], nodeIPMAC[1]);
@@ -149,14 +127,27 @@ void master(int size){
         }
         printf("\n");
         currentIteration++;
-        sleep(iterationSleep);
+        sleep(sleepTime);
     }
+    // Log final station report after termination
+    printf("======================================================================\n");
+    printf("STATION TERMINATION REPORT\n");
+    printf("Terminated at Iteration %d\n",currentIteration);
+    printf("Terminated Manually? %s\n", stopSignal ? "Yes" : "No");
+    printf("Total Elapsed Time: %f seconds\n", MPI_Wtime() - startTime);
+    printf("Total Recorded Events: %d\n", totalEvents);
+    printf("True Events: %d\n", trueEvents);
+    printf("False Events: %d\n", falseEvents);
+    printf("======================================================================\n");
+
 }
 
+/* The Satellite routine which runs indefinitely until station node is terminated
+ * It takes in an a 2D array representing all sensor nodes and generates random temperature for each node per iteration
+ */
 void* satellite(void* arg){
     int (*array)[column] = arg;
-    while(maxIterations == -1 || satelliteIteration < maxIterations){
-        printf("SATELLITE max iterations %d\n", maxIterations);
+    while(1){
         for (int i = 0; i<row; i++){
             for (int j = 0; j<column; j++){
                 int sat_temperature = randomValue(TEMP_LOW, TEMP_HIGH, stationRank);
@@ -164,36 +155,36 @@ void* satellite(void* arg){
             }
         }
         getTimeStamp(satelliteTime);
-        printf("Satellite Iteration %d\n", satelliteIteration);
         satelliteIteration++;
-        sleep(iterationSleep);
+        sleep(sleepTime);
     }
 }
 
-int checkForExitSignal(){
-    char userInput[10];
+/* Open and Read a text file called commands.txt, If "-1 is found", send a stop signal to all sensor nodes */
+int checkForStopSignal(){
+    // Read and trim text from commands.txt to remove "\n"
     FILE *f = fopen("commands", "r");
+    char userInput[10];
     fgets(userInput, 10, f);
     strtok(userInput, "\n");
+
+    // If "-1" detected then send non-blocking send requests to all sensor nodes with stopSignal=1
     if(strcmp(userInput,"-1")==0){
-        printf("User Terminating Input Detected");
-        userstop = 1;
-        int totalSensors = (row*column);
-        MPI_Request send_request[totalSensors];
-        MPI_Status receive_status[totalSensors];
+        printf("User Terminating Input Detected\n");
+        stopSignal = 1;
+        MPI_Request send_request[size];
+        MPI_Status receive_status[size];
         int numberOfReq = 0;
         // Send a message to each node to end the iteration
-        for (int i = 0; i < totalSensors; i++){
-            printf("Sensor %d\n", i);
-            MPI_Isend(&userstop, 1, MPI_INT, i, 3, MPI_COMM_WORLD, &send_request[numberOfReq]);
+        for (int i = 0; i < size; i++){
+            MPI_Isend(&stopSignal, 1, MPI_INT, i, 3, MPI_COMM_WORLD, &send_request[numberOfReq]);
             numberOfReq+=1;
         }
-        // Wait until all messeges are sents
+        // Wait until all messages are sent to all nodes
 	    MPI_Waitall(numberOfReq , send_request, receive_status);
-        printf("xxxDEADDEADDEADDEAD\n");
-        stopstation = 1;
         return 1;
     }
+    fclose(f);
     return 0;
 }
 
