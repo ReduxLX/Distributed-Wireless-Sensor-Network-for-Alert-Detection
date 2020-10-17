@@ -55,14 +55,14 @@ int slave(MPI_Comm station_comm){
     MPI_Cart_shift(grid_comm, SHIFT_COL, DISP, &neighbors[2], &neighbors[3]);
 
     // Initialize the current iteration
-    int currentIteration = 0;
+    int currentIteration = 1;
 
     // Start a non-blocking receive request to listen for any termination signal from base station
     MPI_Request receive_status;
 	MPI_Irecv(&stopSignal, 1, MPI_INT, stationRank, 3, MPI_COMM_WORLD, &receive_status);
 
     // Keep iterating till currentIteration reaches maxIterations OR 
-    while(maxIterations == -1 || currentIteration < maxIterations){
+    while(maxIterations == -1 || currentIteration <= maxIterations){
         // Initialize the pack buffer with zeros
         int position = 0;
         // Generate a random temperature between TEMP_LOW - TEMP_HIGH

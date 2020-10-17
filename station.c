@@ -30,12 +30,12 @@ extern int    stopSignal;
 /* Initialize new Global Variables */
 char satelliteTime[30];
 int  satelliteIteration = 0;
+int  currentIteration = 1;
 
-int checkForStopSignal();
+int checkForStopSignal(double startTime);
 
 void master(){
     // Initialize end-of-report counters
-    int currentIteration = 0;
     int totalEvents = 0;
 	int trueEvents = 0;
     int falseEvents = 0;
@@ -71,7 +71,6 @@ void master(){
 
     // Listen to incoming requests sent by wsn nodes
     while(1){
-        printf("Iteration %d\n", currentIteration);
         // Check if user has terminated the simulation, break out of loop if yes
         int stopStation = 0;
         // Initialize pack buffer
@@ -81,12 +80,13 @@ void master(){
         neighborMatches = 0;
         int flag = 0;
         // Receive and unpack all the data sent by the sensor
+        double startTime = MPI_Wtime();
         while(!flag && stopStation != 1){
             MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
-            stopStation = checkForStopSignal();
+            stopStation = checkForStopSignal(startTime);
         }
         if(stopStation == 1) break;
-        printf("flag %d", flag);
+        printf("Iteration %d\n", currentIteration);
         MPI_Recv(packbuf, packSize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
         MPI_Unpack(packbuf, packSize, &position, &currentIteration, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Unpack(packbuf, packSize, &position, &eventStartTime, 1, MPI_DOUBLE, MPI_COMM_WORLD);
@@ -163,7 +163,11 @@ void* satellite(void* arg){
 }
 
 /* Open and Read a text file called commands.txt, If "-1 is found", send a stop signal to all sensor nodes */
-int checkForStopSignal(){
+int checkForStopSignal(double startTime){
+    double waitTime = MPI_Wtime() - startTime;
+    // printf("Wait Time: %f\n", waitTime);
+    // printf("current %d | max %d", currentIteration, maxIterations);
+    if(waitTime > 2 || (currentIteration >= maxIterations+1 && maxIterations != -1)) return 1;
     // Read and trim text from commands.txt to remove "\n"
     FILE *f = fopen("commands", "r");
     char userInput[10];
