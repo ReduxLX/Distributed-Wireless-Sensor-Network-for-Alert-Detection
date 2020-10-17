@@ -51,7 +51,7 @@ void master(){
     pthread_t satelliteThread;
     pthread_create(&satelliteThread, NULL, satellite, &satelliteArray);
 
-    MPI_Status status;
+    // MPI_Status status;
     int position;
 
     // Buffers for packed data (in order of appearance)
@@ -70,64 +70,67 @@ void master(){
     memset(messageCount, 0, (size-1)*sizeof(int));
 
     // Listen to incoming requests sent by wsn nodes
-    while(maxIterations == -1 || currentIteration < maxIterations){
+    while(1){
         printf("Iteration %d\n", currentIteration);
         // Check if user has terminated the simulation, break out of loop if yes
-        int stopStation = checkForStopSignal();
-        if(stopStation == 1) break;
-        
+        int stopStation = 0;
         // Initialize pack buffer
         char packbuf[packSize];
-        for(int i=0; i < size - 1; i++){
-            position = 0;
-            neighborMatches = 0;
-            // Receive and unpack all the data sent by the sensor
-            MPI_Recv(packbuf, packSize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-            MPI_Unpack(packbuf, packSize, &position, &eventStartTime, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, packSize, &position, &sensorTemp, 1, MPI_INT, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, packSize, &position, &alertTime, dateSize, MPI_CHAR, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, packSize, &position, &alertNode, 2, MPI_INT, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, packSize, &position, &nodeIPMAC, 40, MPI_CHAR, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, packSize, &position, &neighborDetails, 12, MPI_INT, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, packSize, &position, &neighborIP, 80, MPI_CHAR, MPI_COMM_WORLD);
-            MPI_Unpack(packbuf, packSize, &position, &neighborMAC, 80, MPI_CHAR, MPI_COMM_WORLD);
-            
-            // Calculate the communication time and get source node's rank, coords and temperature sent
-		    double communicationTime =  MPI_Wtime() - eventStartTime;
-            int sourceRank = status.MPI_SOURCE;
-            int sourceX = alertNode[0], sourceY = alertNode[1];
-            int satelliteTemp = satelliteArray[sourceX][sourceY];
-
-            // Get current timestamp
-            char logTime[dateSize];
-            getTimeStamp(logTime);
-
-            // Increment messageCount
-            messageCount[sourceRank] += 1; 
-
-            // Log the received information
-            printf("\nNode %02d has temperature %d\n",sourceRank, sensorTemp);
-            printf("\tAlert Time: %s | Logged Time: %s\n",alertTime, logTime);
-            printf("\tNode Coords: (%d, %d) IP: %s | MAC: %s\n",sourceX, sourceY, nodeIPMAC[0], nodeIPMAC[1]);
-            printf("\tNeighbors:\n");
-            for(int i=0 ; i<4 ; i++){
-                if(neighborDetails[i][0] != -1){
-                    int neigborIP = neighborDetails[i][0], neigborMAC = neighborDetails[i][1], neighborTemp = neighborDetails[i][2];
-                    if(neighborTemp >= sensorTemp-MATCH_RANGE && neighborTemp <= sensorTemp+MATCH_RANGE) neighborMatches++;
-                    printf("\tN%d: (%d, %d, %d)\t", i, neigborIP, neigborMAC, neighborTemp);
-                    printf("IP: %s | MAC: %s\n", neighborIP[i], neighborMAC[i]);
-                }
-            }
-            printf("\tInfrared Satellite Reporting Time: %s\n", satelliteTime);
-            printf("\tInfrared Satellite Reporting (Celsius): %d\n", satelliteTemp);
-            printf("\tInfrared Satellite Reporting Coord: (%d, %d)\n", sourceX, sourceY);
-            printf("\tCommunication Time: %f\n", communicationTime);
-            printf("\tTotal Messages from Node%02d: %d\n", sourceRank, messageCount[sourceRank]);
-            printf("\tNumber of adjacent matches to reporting node: %d\n", neighborMatches);
+        MPI_Status status;
+        position = 0;
+        neighborMatches = 0;
+        int flag = 0;
+        // Receive and unpack all the data sent by the sensor
+        while(!flag && stopStation != 1){
+            MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
+            stopStation = checkForStopSignal();
         }
+        if(stopStation == 1) break;
+        printf("flag %d", flag);
+        MPI_Recv(packbuf, packSize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+        MPI_Unpack(packbuf, packSize, &position, &currentIteration, 1, MPI_INT, MPI_COMM_WORLD);
+        MPI_Unpack(packbuf, packSize, &position, &eventStartTime, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+        MPI_Unpack(packbuf, packSize, &position, &sensorTemp, 1, MPI_INT, MPI_COMM_WORLD);
+        MPI_Unpack(packbuf, packSize, &position, &alertTime, dateSize, MPI_CHAR, MPI_COMM_WORLD);
+        MPI_Unpack(packbuf, packSize, &position, &alertNode, 2, MPI_INT, MPI_COMM_WORLD);
+        MPI_Unpack(packbuf, packSize, &position, &nodeIPMAC, 40, MPI_CHAR, MPI_COMM_WORLD);
+        MPI_Unpack(packbuf, packSize, &position, &neighborDetails, 12, MPI_INT, MPI_COMM_WORLD);
+        MPI_Unpack(packbuf, packSize, &position, &neighborIP, 80, MPI_CHAR, MPI_COMM_WORLD);
+        MPI_Unpack(packbuf, packSize, &position, &neighborMAC, 80, MPI_CHAR, MPI_COMM_WORLD);
+        
+        // Calculate the communication time and get source node's rank, coords and temperature sent
+        double communicationTime =  MPI_Wtime() - eventStartTime;
+        int sourceRank = status.MPI_SOURCE;
+        int sourceX = alertNode[0], sourceY = alertNode[1];
+        int satelliteTemp = satelliteArray[sourceX][sourceY];
+
+        // Get current timestamp
+        char logTime[dateSize];
+        getTimeStamp(logTime);
+
+        // Increment messageCount
+        messageCount[sourceRank] += 1; 
+
+        // Log the received information
+        printf("\nNode %02d has temperature %d\n",sourceRank, sensorTemp);
+        printf("\tAlert Time: %s | Logged Time: %s\n",alertTime, logTime);
+        printf("\tNode Coords: (%d, %d) IP: %s | MAC: %s\n",sourceX, sourceY, nodeIPMAC[0], nodeIPMAC[1]);
+        printf("\tNeighbors:\n");
+        for(int i=0 ; i<4 ; i++){
+            if(neighborDetails[i][0] != -1){
+                int neigborIP = neighborDetails[i][0], neigborMAC = neighborDetails[i][1], neighborTemp = neighborDetails[i][2];
+                if(neighborTemp >= sensorTemp-MATCH_RANGE && neighborTemp <= sensorTemp+MATCH_RANGE) neighborMatches++;
+                printf("\tN%d: (%d, %d, %d)\t", i, neigborIP, neigborMAC, neighborTemp);
+                printf("IP: %s | MAC: %s\n", neighborIP[i], neighborMAC[i]);
+            }
+        }
+        printf("\tInfrared Satellite Reporting Time: %s\n", satelliteTime);
+        printf("\tInfrared Satellite Reporting (Celsius): %d\n", satelliteTemp);
+        printf("\tInfrared Satellite Reporting Coord: (%d, %d)\n", sourceX, sourceY);
+        printf("\tCommunication Time: %f\n", communicationTime);
+        printf("\tTotal Messages from Node%02d: %d\n", sourceRank, messageCount[sourceRank]);
+        printf("\tNumber of adjacent matches to reporting node: %d\n", neighborMatches);
         printf("\n");
-        currentIteration++;
-        sleep(sleepTime);
     }
     // Log final station report after termination
     printf("======================================================================\n");
@@ -139,7 +142,6 @@ void master(){
     printf("True Events: %d\n", trueEvents);
     printf("False Events: %d\n", falseEvents);
     printf("======================================================================\n");
-
 }
 
 /* The Satellite routine which runs indefinitely until station node is terminated

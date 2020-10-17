@@ -107,19 +107,21 @@ int slave(MPI_Comm station_comm){
 
         // Get the event time to calculate communication time
         double eventStartTime = MPI_Wtime();
+        if(temperature > TEMP_THRESHOLD){
+            // Pack all the necessary data
+            MPI_Pack(&currentIteration, 1, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&eventStartTime, 1, MPI_DOUBLE, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&temperature, 1, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&alertTime, dateSize, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&coord, 2, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&nodeIPMAC, 40, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&neighborDetails, 12, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&neighborIP, 80, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&neighborMAC, 80, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
 
-        // Pack all the necessary data
-        MPI_Pack(&eventStartTime, 1, MPI_DOUBLE, packbuf, packSize, &position, MPI_COMM_WORLD);
-        MPI_Pack(&temperature, 1, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
-        MPI_Pack(&alertTime, dateSize, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
-        MPI_Pack(&coord, 2, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
-        MPI_Pack(&nodeIPMAC, 40, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
-        MPI_Pack(&neighborDetails, 12, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
-        MPI_Pack(&neighborIP, 80, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
-        MPI_Pack(&neighborMAC, 80, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
-
-        // Send packed data to the base station node
-        MPI_Send(packbuf, packSize, MPI_PACKED, stationRank, 0, MPI_COMM_WORLD);
+            // Send packed data to the base station node
+            MPI_Send(packbuf, packSize, MPI_PACKED, stationRank, 0, MPI_COMM_WORLD);
+        }
 
         // Increment Current Iteration
         currentIteration++;
