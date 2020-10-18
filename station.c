@@ -55,37 +55,42 @@ void master(){
     int position;
 
     // Buffers for packed data (in order of appearance)
+    int    sendConditions;
     double eventStartTime;
-    int sensorTemp;
-    char alertTime[dateSize];
-    int  alertNode[2];
-    char nodeIPMAC[2][20];
-    int  neighborDetails[4][4];
-    char neighborIP[4][20];
-    char neighborMAC[4][20];
+    int    sensorTemp;
+    int    neighborMatches;
+    char   alertTime[dateSize];
+    int    alertNode[2];
+    char   nodeIPMAC[2][20];
+    int    neighborDetails[4][4];
+    char   neighborIP[4][20];
+    char   neighborMAC[4][20];
 
     // Initialize Counters to track neighbors that match temperatures and total message count
-    int  neighborMatches;
     int  messageCount[(size-1)];
     memset(messageCount, 0, (size-1)*sizeof(int));
 
     // Listen to incoming requests sent by wsn nodes
     while(1){
+        MPI_Status status;
         // Check if user has terminated the simulation, break out of loop if yes
         int stopStation = 0;
         // Initialize pack buffer
         char packbuf[packSize];
-        MPI_Status status;
-        position = 0;
         int flag = 0;
-        // Receive and unpack all the data sent by the sensor
+        position = 0;
+        
+        // Keep looping here until a send request is received from node or termination signal is sent
         double startTime = MPI_Wtime();
         while(!flag && stopStation != 1){
             MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
             stopStation = checkForStopSignal(startTime);
         }
         if(stopStation == 1) break;
+
+        // Receive and unpack all the data sent by one of the sensors
         MPI_Recv(packbuf, packSize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+        MPI_Unpack(packbuf, packSize, &position, &sendConditions,   1, MPI_INT,    MPI_COMM_WORLD);
         MPI_Unpack(packbuf, packSize, &position, &currentIteration, 1, MPI_INT,    MPI_COMM_WORLD);
         MPI_Unpack(packbuf, packSize, &position, &eventStartTime,   1, MPI_DOUBLE, MPI_COMM_WORLD);
         MPI_Unpack(packbuf, packSize, &position, &sensorTemp,       1, MPI_INT,    MPI_COMM_WORLD);
@@ -97,6 +102,9 @@ void master(){
         MPI_Unpack(packbuf, packSize, &position, &neighborIP,      80, MPI_CHAR,   MPI_COMM_WORLD);
         MPI_Unpack(packbuf, packSize, &position, &neighborMAC,     80, MPI_CHAR,   MPI_COMM_WORLD);
         
+        // Ignore rank 0's signal if rank 0 doesn't meet requirement
+        if(sendConditions == 0) continue;
+
         // Calculate the communication time and get source node's rank, coords and temperature sent
         double communicationTime =  MPI_Wtime() - eventStartTime;
         int sourceRank = status.MPI_SOURCE;
@@ -107,7 +115,7 @@ void master(){
         char logTime[dateSize];
         getTimeStamp(logTime);
 
-        // Increment messageCount
+        // Increment messageCount and totalEvents
         messageCount[sourceRank] += 1; 
         totalEvents += 1;
 
@@ -122,6 +130,7 @@ void master(){
         }else{
             falseEvents++;
         }
+
         // Log the received information
         printf("\n======================================================================\n");
         printf("Iteration: %d\n",currentIteration);
@@ -143,7 +152,7 @@ void master(){
         printf("Infrared Satellite Reporting Coord: (%d, %d)\n", sourceX, sourceY);
 
         printf("\nCommunication Time: %f\n", communicationTime);
-        printf("Total Messages from Node%02d: %d\n", sourceRank, messageCount[sourceRank]);
+        printf("Total Messages from Node %d: %d\n", sourceRank, messageCount[sourceRank]);
         printf("Number of adjacent matches to reporting node: %d\n", neighborMatches);
         printf("======================================================================\n");
     }
@@ -179,10 +188,9 @@ void* satellite(void* arg){
 
 /* Open and Read a text file called commands.txt, If "-1 is found", send a stop signal to all sensor nodes */
 int checkForStopSignal(double startTime){
+    // If no send requests detected after 3 seconds, send termination signal
     double waitTime = MPI_Wtime() - startTime;
-    // printf("Wait Time: %f\n", waitTime);
-    // printf("current %d | max %d", currentIteration, maxIterations);
-    if(waitTime > 2 || (currentIteration >= maxIterations+1 && maxIterations != -1)) return 1;
+    if(maxIterations != -1 && (waitTime > 3 || currentIteration >= maxIterations+1)) return 1;
     // Read and trim text from commands.txt to remove "\n"
     FILE *f = fopen("commands", "r");
     char userInput[10];

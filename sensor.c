@@ -73,6 +73,7 @@ int slave(MPI_Comm station_comm){
         int  neighborTemp[4] = {-1, -1, -1, -1};
         char neighborIP[4][20];
         char neighborMAC[4][20];
+        
         // Exchange Temperature, IP and MAC addresses
         for(int i=0 ; i<4 ; i++){
             MPI_Send(&temperature,     1, MPI_INT,  neighbors[i], 0, MPI_COMM_WORLD);
@@ -110,8 +111,10 @@ int slave(MPI_Comm station_comm){
 
         // Get the event time to calculate communication time
         double eventStartTime = MPI_Wtime();
-        if(temperature > TEMP_THRESHOLD && neighborMatches >= 2){
+        int sendConditions = temperature > TEMP_THRESHOLD && neighborMatches >= 2;
+        if(sendConditions || rank == 0){
             // Pack all the necessary data
+            MPI_Pack(&sendConditions,   1, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
             MPI_Pack(&currentIteration, 1, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
             MPI_Pack(&eventStartTime,   1, MPI_DOUBLE, packbuf, packSize, &position, MPI_COMM_WORLD);
             MPI_Pack(&temperature,      1, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
