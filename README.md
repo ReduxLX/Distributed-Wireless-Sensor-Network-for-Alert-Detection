@@ -21,15 +21,15 @@ Finally it proceeds to log an end-report to "stationLog.txt" before terminating.
 
 # Instructions
 ### Option 1:
-Compile files
-`mpicc -fopenmp main.h main.c sensor.c station.c -o main`
-Run network indefinitely
-`mpirun -np 21 -oversubscribe main 5 4`
-Run network for 10 iterations
-`mpirun -np 21 -oversubscribe main 5 4 10`
+Compile files <br>
+`mpicc -fopenmp main.h main.c sensor.c station.c -o main` <br><br>
+Run network indefinitely <br>
+`mpirun -np 21 -oversubscribe main 5 4` <br><br>
+Run network for 10 iterations <br>
+`mpirun -np 21 -oversubscribe main 5 4 10` <br><br>
 
 ### Option 2: 
-Use "make" to automatically compile and run the program.
+Use "make" to automatically compile and run the program. <br>
 Change contents of MakeFile to adjust input parameters.
 
 # Interesting Project Facts
