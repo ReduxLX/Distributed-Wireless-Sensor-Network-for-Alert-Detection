@@ -137,14 +137,14 @@ void master(){
         printf("Logged Time: %s\n",logTime);
         printf("Alert Reported Time: %s\n",alertTime);
         printf("Alert Type: %s\n",eventType ? "True" : "False");
-        printf("Reporting Node \t Coords  Temp \t MAC \t\t IP\n");
-        printf("%d \t\t (%d,%d)\t %d   \t %s \t %s\n\n", sourceRank, sourceX, sourceY, sensorTemp, nodeIPMAC[0], nodeIPMAC[1]);
-        printf("Neighbor Nodes \t Coords  Temp \t MAC \t\t IP\n");
+        printf("Reporting Node \t Coords  Temp \t MAC \t\t     IP\n");
+        printf("%d \t\t (%d,%d)\t %d   \t %s   %s\n\n", sourceRank, sourceX, sourceY, sensorTemp, nodeIPMAC[1], nodeIPMAC[0]);
+        printf("Neighbor Nodes \t Coords  Temp \t MAC \t\t     IP\n");
         for(int i=0 ; i<4 ; i++){
             if(neighborDetails[i][0] != -1){
                 int neighborRank = neighborDetails[i][0], neighborX    = neighborDetails[i][1], 
                     neighborY    = neighborDetails[i][2], neighborTemp = neighborDetails[i][3];
-                printf("%d \t\t (%d,%d)\t %d   \t %s \t %s\n", neighborRank, neighborX, neighborY, neighborTemp, neighborIP[i], neighborMAC[i]);
+                printf("%d \t\t (%d,%d)\t %d   \t %s   %s\n", neighborRank, neighborX, neighborY, neighborTemp, neighborMAC[i], neighborIP[i]);
             }
         }
         printf("\nInfrared Satellite Reporting Time: %s\n", satelliteTime);
