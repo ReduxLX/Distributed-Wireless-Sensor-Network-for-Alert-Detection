@@ -75,11 +75,11 @@ int slave(MPI_Comm station_comm){
         char neighborMAC[4][20];
         // Exchange Temperature, IP and MAC addresses
         for(int i=0 ; i<4 ; i++){
-            MPI_Send(&temperature, 1, MPI_INT, neighbors[i], 0, MPI_COMM_WORLD);
-            MPI_Send(&IP_address, 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
-            MPI_Send(&MAC, 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
-            MPI_Recv(&neighborTemp[i], 1, MPI_INT, neighbors[i], 0, MPI_COMM_WORLD, &status[0]);
-            MPI_Recv(&neighborIP[i], 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[1]);
+            MPI_Send(&temperature,     1, MPI_INT,  neighbors[i], 0, MPI_COMM_WORLD);
+            MPI_Send(&IP_address,     20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
+            MPI_Send(&MAC,            20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
+            MPI_Recv(&neighborTemp[i], 1, MPI_INT,  neighbors[i], 0, MPI_COMM_WORLD, &status[0]);
+            MPI_Recv(&neighborIP[i],  20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[1]);
             MPI_Recv(&neighborMAC[i], 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[2]);
         }
         // Get current time
@@ -93,31 +93,35 @@ int slave(MPI_Comm station_comm){
 
         // Initialize and fill an array containing neighboring node's dimensions
         // Also copy each neighbor's temperature for convenience
-        int  neighborDetails[4][3];
+        int  neighborDetails[4][4];
+        int  neighborMatches = 0;
         for(int i=0 ; i<4 ; i++){
             int neighborCoord[2];
-            neighborDetails[i][0] = neighborDetails[i][1] = neighborDetails[i][2] = -1;
+            neighborDetails[i][0] = neighborDetails[i][1] = neighborDetails[i][2] = neighborDetails[i][3] = -1;
             if(neighbors[i] != -2){
+                if(neighborTemp[i] > TEMP_THRESHOLD || (neighborTemp[i] >= temperature-MATCH_RANGE && neighborTemp[i] <= temperature+MATCH_RANGE)) neighborMatches++;
                 MPI_Cart_coords(grid_comm, neighbors[i], ndims, neighborCoord);
-                neighborDetails[i][0] = neighborCoord[0];
-                neighborDetails[i][1] = neighborCoord[1];
-                neighborDetails[i][2] = neighborTemp[i];
+                neighborDetails[i][0] = neighbors[i];
+                neighborDetails[i][1] = neighborCoord[0];
+                neighborDetails[i][2] = neighborCoord[1];
+                neighborDetails[i][3] = neighborTemp[i];
             }
         }
 
         // Get the event time to calculate communication time
         double eventStartTime = MPI_Wtime();
-        if(temperature > TEMP_THRESHOLD){
+        if(temperature > TEMP_THRESHOLD && neighborMatches >= 2){
             // Pack all the necessary data
-            MPI_Pack(&currentIteration, 1, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
-            MPI_Pack(&eventStartTime, 1, MPI_DOUBLE, packbuf, packSize, &position, MPI_COMM_WORLD);
-            MPI_Pack(&temperature, 1, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
-            MPI_Pack(&alertTime, dateSize, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
-            MPI_Pack(&coord, 2, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
-            MPI_Pack(&nodeIPMAC, 40, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
-            MPI_Pack(&neighborDetails, 12, MPI_INT, packbuf, packSize, &position, MPI_COMM_WORLD);
-            MPI_Pack(&neighborIP, 80, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
-            MPI_Pack(&neighborMAC, 80, MPI_CHAR, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&currentIteration, 1, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&eventStartTime,   1, MPI_DOUBLE, packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&temperature,      1, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&neighborMatches,  1, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&alertTime, dateSize, MPI_CHAR,   packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&coord,            2, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&nodeIPMAC,       40, MPI_CHAR,   packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&neighborDetails, 16, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&neighborIP,      80, MPI_CHAR,   packbuf, packSize, &position, MPI_COMM_WORLD);
+            MPI_Pack(&neighborMAC,     80, MPI_CHAR,   packbuf, packSize, &position, MPI_COMM_WORLD);
 
             // Send packed data to the base station node
             MPI_Send(packbuf, packSize, MPI_PACKED, stationRank, 0, MPI_COMM_WORLD);
