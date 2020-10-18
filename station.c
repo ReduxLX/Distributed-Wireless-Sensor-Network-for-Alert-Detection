@@ -56,6 +56,7 @@ void master(){
 
     // Buffers for packed data (in order of appearance)
     int    sendConditions;
+    int    nodeIteration;
     double eventStartTime;
     int    sensorTemp;
     int    neighborMatches;
@@ -70,6 +71,7 @@ void master(){
     int  messageCount[(size-1)];
     memset(messageCount, 0, (size-1)*sizeof(int));
 
+    printf("Iteration 1\n");
     // Listen to incoming requests sent by wsn nodes
     while(1){
         MPI_Status status;
@@ -91,7 +93,7 @@ void master(){
         // Receive and unpack all the data sent by one of the sensors
         MPI_Recv(packbuf, packSize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
         MPI_Unpack(packbuf, packSize, &position, &sendConditions,   1, MPI_INT,    MPI_COMM_WORLD);
-        MPI_Unpack(packbuf, packSize, &position, &currentIteration, 1, MPI_INT,    MPI_COMM_WORLD);
+        MPI_Unpack(packbuf, packSize, &position, &nodeIteration,    1, MPI_INT,    MPI_COMM_WORLD);
         MPI_Unpack(packbuf, packSize, &position, &eventStartTime,   1, MPI_DOUBLE, MPI_COMM_WORLD);
         MPI_Unpack(packbuf, packSize, &position, &sensorTemp,       1, MPI_INT,    MPI_COMM_WORLD);
         MPI_Unpack(packbuf, packSize, &position, &neighborMatches,  1, MPI_INT,    MPI_COMM_WORLD);
@@ -102,6 +104,11 @@ void master(){
         MPI_Unpack(packbuf, packSize, &position, &neighborIP,      80, MPI_CHAR,   MPI_COMM_WORLD);
         MPI_Unpack(packbuf, packSize, &position, &neighborMAC,     80, MPI_CHAR,   MPI_COMM_WORLD);
         
+        if(nodeIteration > currentIteration){
+            currentIteration = nodeIteration;
+            printf("Iteration %d\n", currentIteration);
+        }
+
         // Ignore rank 0's signal if rank 0 doesn't meet requirement
         if(sendConditions == 0) continue;
 
@@ -131,41 +138,49 @@ void master(){
             falseEvents++;
         }
 
+        // Open the log file in append mode
+		FILE *fp;
+		fp = fopen("stationLog.txt", "a+");
+
         // Log the received information
-        printf("\n======================================================================\n");
-        printf("Iteration: %d\n",currentIteration);
-        printf("Logged Time: %s\n",logTime);
-        printf("Alert Reported Time: %s\n",alertTime);
-        printf("Alert Type: %s\n",eventType ? "True" : "False");
-        printf("Reporting Node \t Coords  Temp \t MAC \t\t     IP\n");
-        printf("%d \t\t (%d,%d)\t %d   \t %s   %s\n\n", sourceRank, sourceX, sourceY, sensorTemp, nodeIPMAC[1], nodeIPMAC[0]);
-        printf("Neighbor Nodes \t Coords  Temp \t MAC \t\t     IP\n");
+        fprintf(fp, "\n======================================================================\n");
+        fprintf(fp, "Iteration: %d\n",currentIteration);
+        fprintf(fp, "Logged Time: %s\n",logTime);
+        fprintf(fp, "Alert Reported Time: %s\n",alertTime);
+        fprintf(fp, "Alert Type: %s\n",eventType ? "True" : "False");
+        fprintf(fp, "Reporting Node \t Coords  Temp \t MAC \t\t     IP\n");
+        fprintf(fp, "%d \t\t (%d,%d)\t %d   \t %s   %s\n\n", sourceRank, sourceX, sourceY, sensorTemp, nodeIPMAC[1], nodeIPMAC[0]);
+        fprintf(fp, "Neighbor Nodes \t Coords  Temp \t MAC \t\t     IP\n");
         for(int i=0 ; i<4 ; i++){
             if(neighborDetails[i][0] != -1){
                 int neighborRank = neighborDetails[i][0], neighborX    = neighborDetails[i][1], 
                     neighborY    = neighborDetails[i][2], neighborTemp = neighborDetails[i][3];
-                printf("%d \t\t (%d,%d)\t %d   \t %s   %s\n", neighborRank, neighborX, neighborY, neighborTemp, neighborMAC[i], neighborIP[i]);
+                fprintf(fp, "%d \t\t (%d,%d)\t %d   \t %s   %s\n", neighborRank, neighborX, neighborY, neighborTemp, neighborMAC[i], neighborIP[i]);
             }
         }
-        printf("\nInfrared Satellite Reporting Time: %s\n", satelliteTime);
-        printf("Infrared Satellite Reporting (Celsius): %d\n", satelliteTemp);
-        printf("Infrared Satellite Reporting Coord: (%d, %d)\n", sourceX, sourceY);
+        fprintf(fp, "\nInfrared Satellite Reporting Time: %s\n", satelliteTime);
+        fprintf(fp, "Infrared Satellite Reporting (Celsius): %d\n", satelliteTemp);
+        fprintf(fp, "Infrared Satellite Reporting Coord: (%d, %d)\n", sourceX, sourceY);
 
-        printf("\nCommunication Time: %f\n", communicationTime);
-        printf("Total Messages from Node %d: %d\n", sourceRank, messageCount[sourceRank]);
-        printf("Number of adjacent matches to reporting node: %d\n", neighborMatches);
-        printf("======================================================================\n");
+        fprintf(fp, "\nCommunication Time: %f\n", communicationTime);
+        fprintf(fp, "Total Messages from Node %d: %d\n", sourceRank, messageCount[sourceRank]);
+        fprintf(fp, "Number of adjacent matches to reporting node: %d\n", neighborMatches);
+        fprintf(fp, "======================================================================\n");
+        fclose(fp);
     }
     // Log final station report after termination
-    printf("======================================================================\n");
-    printf("STATION TERMINATION REPORT\n");
-    printf("Terminated at Iteration %d\n",currentIteration);
-    printf("Terminated Manually? %s\n", stopSignal ? "Yes" : "No");
-    printf("Total Elapsed Time: %f seconds\n", MPI_Wtime() - startTime);
-    printf("Total Recorded Events: %d\n", totalEvents);
-    printf("True Events: %d\n", trueEvents);
-    printf("False Events: %d\n", falseEvents);
-    printf("======================================================================\n");
+    FILE *fp;
+    fp = fopen("stationLog.txt", "a+");
+    fprintf(fp, "======================================================================\n");
+    fprintf(fp, "STATION TERMINATION REPORT\n");
+    fprintf(fp, "Terminated at Iteration %d\n",currentIteration);
+    fprintf(fp, "Terminated Manually? %s\n", stopSignal ? "Yes" : "No");
+    fprintf(fp, "Total Elapsed Time: %f seconds\n", MPI_Wtime() - startTime);
+    fprintf(fp, "Total Recorded Events: %d\n", totalEvents);
+    fprintf(fp, "True Events: %d\n", trueEvents);
+    fprintf(fp, "False Events: %d\n", falseEvents);
+    fprintf(fp, "======================================================================\n");
+    fclose(fp);
 }
 
 /* The Satellite routine which runs indefinitely until station node is terminated
