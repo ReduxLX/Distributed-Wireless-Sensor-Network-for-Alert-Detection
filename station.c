@@ -75,8 +75,6 @@ void master(){
     // Listen to incoming requests sent by wsn nodes
     while(1){
         MPI_Status status;
-        // Check if user has terminated the simulation, break out of loop if yes
-        int stopStation = 0;
         // Initialize pack buffer
         char packbuf[packSize];
         int flag = 0;
@@ -84,11 +82,11 @@ void master(){
         
         // Keep looping here until a send request is received from node or termination signal is sent
         double startTime = MPI_Wtime();
-        while(!flag && stopStation != 1){
+        while(!flag && stopSignal != 1){
             MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
-            stopStation = checkForStopSignal(startTime);
+            stopSignal = checkForStopSignal(startTime);
         }
-        if(stopStation == 1) break;
+        if(stopSignal == 1) break;
 
         // Receive and unpack all the data sent by one of the sensors
         MPI_Recv(packbuf, packSize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
@@ -181,6 +179,9 @@ void master(){
     fprintf(fp, "False Events: %d\n", falseEvents);
     fprintf(fp, "======================================================================\n");
     fclose(fp);
+
+    // Wait for satellite thread to finish before exitting
+    pthread_join(satelliteThread, NULL);
 }
 
 /* The Satellite routine which runs indefinitely until station node is terminated
@@ -189,6 +190,9 @@ void master(){
 void* satellite(void* arg){
     int (*array)[column] = arg;
     while(1){
+        if(stopSignal == 1){
+            break;
+        }
         for (int i = 0; i<row; i++){
             for (int j = 0; j<column; j++){
                 int sat_temperature = randomValue(TEMP_LOW, TEMP_HIGH, stationRank);
@@ -199,6 +203,8 @@ void* satellite(void* arg){
         satelliteIteration++;
         sleep(sleepTime);
     }
+
+    return 0;
 }
 
 /* Open and Read a text file called commands.txt, If "-1 is found", send a stop signal to all sensor nodes */
