@@ -143,7 +143,7 @@ void master(){
 
         // Log the received information
         fprintf(fp, "\n======================================================================\n");
-        fprintf(fp, "Iteration: %d\n",currentIteration);
+        fprintf(fp, "Iteration: %d\n",nodeIteration);
         fprintf(fp, "Logged Time: %s\n",logTime);
         fprintf(fp, "Alert Reported Time: %s\n",alertTime);
         fprintf(fp, "Alert Type: %s\n",eventType ? "True" : "False");
