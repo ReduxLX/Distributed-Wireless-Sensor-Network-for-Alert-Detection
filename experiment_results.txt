@@ -1,0 +1,54 @@
+================Thu 2020-10-29 01:58:02================
+Experiment performed on 3x3 grid for 100000 iterations
+Total Events Sent           : 183997
+Total Communications Time   : 99.020200 seconds
+Average Communications Time : 0.000538 seconds
+=======================================================
+================Thu 2020-10-29 01:59:16================
+Experiment performed on 3x3 grid for 100000 iterations
+Total Events Sent           : 183587
+Total Communications Time   : 103.975866 seconds
+Average Communications Time : 0.000566 seconds
+=======================================================
+================Thu 2020-10-29 02:00:42================
+Experiment performed on 3x3 grid for 100000 iterations
+Total Events Sent           : 183688
+Total Communications Time   : 102.259736 seconds
+Average Communications Time : 0.000557 seconds
+=======================================================
+================Thu 2020-10-29 02:02:07================
+Experiment performed on 3x3 grid for 100000 iterations
+Total Events Sent           : 183722
+Total Communications Time   : 111.651370 seconds
+Average Communications Time : 0.000608 seconds
+=======================================================
+================Thu 2020-10-29 02:03:15================
+Experiment performed on 3x3 grid for 100000 iterations
+Total Events Sent           : 183601
+Total Communications Time   : 103.221515 seconds
+Average Communications Time : 0.000562 seconds
+=======================================================
+================Thu 2020-10-29 02:06:37================
+Experiment performed on 5x4 grid for 100000 iterations
+Total Events Sent           : 500922
+Total Communications Time   : 1757.354335 seconds
+Average Communications Time : 0.003508 seconds
+=======================================================
+================Thu 2020-10-29 02:08:56================
+Experiment performed on 5x4 grid for 100000 iterations
+Total Events Sent           : 502858
+Total Communications Time   : 2115.815209 seconds
+Average Communications Time : 0.004208 seconds
+=======================================================
+================Thu 2020-10-29 02:14:19================
+Experiment performed on 6x5 grid for 100000 iterations
+Total Events Sent           : 804806
+Total Communications Time   : 14008.117938 seconds
+Average Communications Time : 0.017406 seconds
+=======================================================
+================Thu 2020-10-29 02:23:27================
+Experiment performed on 7x6 grid for 100000 iterations
+Total Events Sent           : 1176189
+Total Communications Time   : 51941.442572 seconds
+Average Communications Time : 0.044161 seconds
+=======================================================

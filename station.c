@@ -37,9 +37,10 @@ int checkForStopSignal(double startTime);
 
 void master(){
     // Initialize end-of-report counters
-    int totalEvents = 0;
-	int trueEvents = 0;
-    int falseEvents = 0;
+    int    totalEvents   = 0;
+	int    trueEvents    = 0;
+    int    falseEvents   = 0;
+    double totalCommTime = 0.0;
 
     // Initialize a 2D array of row*column to store satellite temperatures
     int satelliteArray[row][column];
@@ -125,9 +126,10 @@ void master(){
         char logTime[dateSize];
         getTimeStamp(logTime);
 
-        // Increment messageCount and totalEvents
+        // Increment messageCount, totalEvents and totalCommTime
         messageCount[sourceRank] += 1; 
         totalEvents += 1;
+        totalCommTime += communicationTime;
 
         // Determine if event is true/false
         // True Event: Temperature > Threshold (80) AND Infrared Temperature > Threshold (80) AND
@@ -162,6 +164,8 @@ void master(){
         fprintf(fp, "Infrared Satellite Reporting Coord: (%d, %d)\n", sourceX, sourceY);
 
         fprintf(fp, "\nCommunication Time: %f\n", communicationTime);
+        fprintf(fp, "Total Communications Time: %f seconds\n", totalCommTime);
+        fprintf(fp, "Average Communications Time: %f seconds\n", totalCommTime/totalEvents);
         fprintf(fp, "Total Messages from Node %d: %d\n", sourceRank, messageCount[sourceRank]);
         fprintf(fp, "Number of adjacent matches to reporting node: %d\n", neighborMatches);
         fprintf(fp, "======================================================================\n");
@@ -172,15 +176,31 @@ void master(){
     fprintf(fp, "Terminated at Iteration %d\n",currentIteration);
     fprintf(fp, "Terminated Manually? %s\n", manualExit ? "Yes" : "No");
     fprintf(fp, "Total Elapsed Time: %f seconds\n", MPI_Wtime() - startTime);
+    fprintf(fp, "Total Communications Time: %f seconds\n", totalCommTime);
+    fprintf(fp, "Average Communications Time: %f seconds\n", totalCommTime/totalEvents);
     fprintf(fp, "Total Recorded Events: %d\n", totalEvents);
     fprintf(fp, "True Events: %d\n", trueEvents);
     fprintf(fp, "False Events: %d\n", falseEvents);
     fprintf(fp, "======================================================================\n");
     fclose(fp);
 
+    // Log Experimental Data to a separate text file for convenience
+    FILE *fe;
+    fe = fopen("experiment_results.txt", "a+");
+    char currentTime[dateSize];
+    getTimeStamp(currentTime);
+    fprintf(fe, "================%s================\n", currentTime);
+    fprintf(fe, "Experiment performed on %dx%d grid for %d iterations\n", row, column, maxIterations);
+    fprintf(fe, "Total Events Sent           : %d\n", totalEvents);
+    fprintf(fe, "Total Communications Time   : %f seconds\n", totalCommTime);
+    fprintf(fe, "Average Communications Time : %f seconds\n", totalCommTime/totalEvents);
+    fprintf(fe, "=======================================================\n");
+
     // Wait for satellite thread to finish before exitting
     pthread_join(satelliteThread, NULL);
-    printf("Station terminated");
+
+    printf("Station terminated\n");
+    
 }
 
 /* The Satellite routine which runs indefinitely until station node is terminated
