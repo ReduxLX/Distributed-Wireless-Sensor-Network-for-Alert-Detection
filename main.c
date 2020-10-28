@@ -10,11 +10,15 @@ Authors [A~Z]:
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h> 
-#include <mpi.h>
 #include <time.h>
 #include <unistd.h>
-#include <time.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netpacket/packet.h>
+#include <netdb.h>
+#include <ifaddrs.h>
 #include <pthread.h>
+#include <mpi.h>
 
 #include "./main.h"
 #include "./station.h"
@@ -30,8 +34,9 @@ int    maxIterations   = -1;
 int    stopSignal      = 0;
 int    cummulativeSeed = 1;
 char   IP_address[20];
-char   MAC[]           = "fc:3f:db:8f:dc:15";
+char   MAC[20];
 
+void getIPMAC(char* host, char* MAC);
 
 int main(int argc, char *argv[]){
     // Record the start of the simulation
@@ -45,8 +50,16 @@ int main(int argc, char *argv[]){
     // Set base station (master node) rank
     stationRank = size-1;
 
-    // Assign a simulated IP address to each node
-    snprintf(IP_address, 20, "182.253.250.%d", rank);
+    /*====================================IMPORTANT====================================*/
+    /*     PLEASE SWITCH TO APROACH 2 IF getIPMAC IS CAUSING ERRORS/NOT WORKING        */
+
+    // Approach 1: Get the socket's IP and MAC address
+    getIPMAC(IP_address, MAC);
+
+    // Approach 2: Assign a fake simulated IP & MAC address which can vary using the process's rank
+    // snprintf(IP_address, 20, "182.253.250.%d", rank);
+    // snprintf(MAC, 20, "fc:3f:db:8f:dc:%x", rank%255 > 15 ? rank%255 : (rank%255)+16);
+    /*==================================================================================*/
     
     // Check that there are 3 command arguments (main, rows, columns) and that row * column + 1 = size
     // Note: We have chose to let all processes calculate the error value instead of just root node
@@ -122,5 +135,38 @@ void getTimeStamp(char* dateStr){
 
 	// Convert the time to date time string
     strftime(dateStr, dateSize, "%a %Y-%m-%d %H:%M:%S", &ts);
+}
+
+// Get the IP and MAC address
+void getIPMAC(char* host, char* MAC){
+    struct ifaddrs *ifaddr, *ifa;
+    int family, s;
+
+    if (getifaddrs(&ifaddr) == -1){
+        perror("getifaddrs");
+        exit(EXIT_FAILURE);
+    }
+
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next){
+        if (ifa->ifa_addr == NULL)
+            continue;
+
+        // Get socket MAC Address 
+        if ((ifa->ifa_addr) && (ifa->ifa_addr->sa_family == AF_PACKET)){
+            struct sockaddr_ll *sp = (struct sockaddr_ll*)ifa->ifa_addr;
+            int offset = 0;
+            for (int i=0; i < (sp->sll_halen); i++){
+                offset += snprintf(MAC+offset, 30 - offset, "%02x%c", (sp->sll_addr[i]), (i+1!=sp->sll_halen)?':':'\0');
+            }
+        }
+        // Get socket IP address
+        s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+        if((strcmp(ifa->ifa_name,"enp0s3")==0) && (ifa->ifa_addr->sa_family==AF_INET)){
+            if(s != 0) exit(EXIT_FAILURE);
+        }
+    }
+    // printf("IP Address : <%s>\n", host);
+    // printf("MAC Address: <%s>\n", MAC);
+    freeifaddrs(ifaddr);
 }
 

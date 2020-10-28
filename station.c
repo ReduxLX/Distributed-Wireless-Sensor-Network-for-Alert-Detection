@@ -67,6 +67,10 @@ void master(){
     char   neighborIP[4][20];
     char   neighborMAC[4][20];
 
+    // Open the log file in append mode
+    FILE *fp;
+    fp = fopen("stationLog.txt", "w");
+
     // Initialize Counters to track neighbors that match temperatures and total message count
     int  messageCount[(size-1)];
     memset(messageCount, 0, (size-1)*sizeof(int));
@@ -129,16 +133,12 @@ void master(){
         //             (>=2 Neighbors Temperature >80 OR Temperature within limit of node's temperature (5))
         // False Event: Otherwise
         int eventType = 0;
-        if(sensorTemp > TEMP_THRESHOLD && satelliteTemp > TEMP_THRESHOLD){
+        if(satelliteTemp > TEMP_THRESHOLD){
             eventType = 1;
             trueEvents++;
         }else{
             falseEvents++;
         }
-
-        // Open the log file in append mode
-		FILE *fp;
-		fp = fopen("stationLog.txt", "a+");
 
         // Log the received information
         fprintf(fp, "\n======================================================================\n");
@@ -164,11 +164,8 @@ void master(){
         fprintf(fp, "Total Messages from Node %d: %d\n", sourceRank, messageCount[sourceRank]);
         fprintf(fp, "Number of adjacent matches to reporting node: %d\n", neighborMatches);
         fprintf(fp, "======================================================================\n");
-        fclose(fp);
     }
     // Log final station report after termination
-    FILE *fp;
-    fp = fopen("stationLog.txt", "a+");
     fprintf(fp, "======================================================================\n");
     fprintf(fp, "STATION TERMINATION REPORT\n");
     fprintf(fp, "Terminated at Iteration %d\n",currentIteration);
@@ -182,6 +179,7 @@ void master(){
 
     // Wait for satellite thread to finish before exitting
     pthread_join(satelliteThread, NULL);
+    printf("Station terminated");
 }
 
 /* The Satellite routine which runs indefinitely until station node is terminated
@@ -211,7 +209,7 @@ void* satellite(void* arg){
 int checkForStopSignal(double startTime){
     // If no send requests detected after 3 seconds, send termination signal
     double waitTime = MPI_Wtime() - startTime;
-    if(maxIterations != -1 && (waitTime > 3 || currentIteration >= maxIterations+1)) return 1;
+    if(maxIterations != -1 && waitTime > 3) return 1;
     // Read and trim text from commands.txt to remove "\n"
     FILE *f = fopen("commands", "r");
     char userInput[10];

@@ -12,7 +12,6 @@ Authors [A~Z]:
 #include <stdbool.h> 
 #include <time.h>
 #include <unistd.h>
-#include <time.h>
 #include <pthread.h>
 #include <mpi.h>
 
@@ -63,7 +62,7 @@ int slave(MPI_Comm station_comm){
 
     // Keep iterating till currentIteration reaches maxIterations OR 
     while(maxIterations == -1 || currentIteration <= maxIterations){
-        // Initialize the pack buffer with zeros
+        // Initialize position pointer to 0
         int position = 0;
         // Generate a random temperature between TEMP_LOW - TEMP_HIGH
         int temperature = randomValue(TEMP_LOW, TEMP_HIGH, rank);
@@ -73,15 +72,20 @@ int slave(MPI_Comm station_comm){
         int  neighborTemp[4] = {-1, -1, -1, -1};
         char neighborIP[4][20];
         char neighborMAC[4][20];
+
+        if(stopSignal == 1)
+            printf("Rank %d received signal at iteration %d\n", rank, currentIteration);
         
         // Exchange Temperature, IP and MAC addresses
         for(int i=0 ; i<4 ; i++){
-            MPI_Send(&temperature,     1, MPI_INT,  neighbors[i], 0, MPI_COMM_WORLD);
-            MPI_Send(&IP_address,     20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
-            MPI_Send(&MAC,            20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
-            MPI_Recv(&neighborTemp[i], 1, MPI_INT,  neighbors[i], 0, MPI_COMM_WORLD, &status[0]);
-            MPI_Recv(&neighborIP[i],  20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[1]);
-            MPI_Recv(&neighborMAC[i], 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[2]);
+            if(neighbors[i]!=-2){
+                MPI_Send(&temperature,     1, MPI_INT,  neighbors[i], 0, MPI_COMM_WORLD);
+                MPI_Send(&IP_address,     20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
+                MPI_Send(&MAC,            20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
+                MPI_Recv(&neighborTemp[i], 1, MPI_INT,  neighbors[i], 0, MPI_COMM_WORLD, &status[0]);
+                MPI_Recv(&neighborIP[i],  20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[1]);
+                MPI_Recv(&neighborMAC[i], 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[2]);
+            }
         }
         // Get current time
         char alertTime[dateSize];
@@ -134,10 +138,14 @@ int slave(MPI_Comm station_comm){
         currentIteration++;
 
         // If there is stop signal, break out of loop else wait for next iteration
-        if (stopSignal == 1) break;
+        if (stopSignal == 1){
+            printf("Rank %d break\n", rank);
+            break;  
+        } 
         sleep(sleepTime);
     }
 
+    printf("Rank %d terminated\n", rank);
 
     MPI_Comm_free(&grid_comm);
 	return 0;
