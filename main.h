@@ -10,12 +10,13 @@ Authors [A~Z]:
 #define TEMP_HIGH       100
 #define TEMP_THRESHOLD   80
 #define MATCH_RANGE       5
-#define sleepTime         1       
+#define sleepTime         0.1       
 #define packSize        500
 #define dateSize         30
 
 // Functions Definitions for the main.c file
 int randomValue(int low, int high, int rank);
 void getTimeStamp(char* buf);
+void getIPAddress(char* host, char* MAC);
 
 

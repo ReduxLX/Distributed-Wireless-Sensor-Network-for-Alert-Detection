@@ -31,6 +31,7 @@ extern int    stopSignal;
 char satelliteTime[30];
 int  satelliteIteration = 0;
 int  currentIteration = 1;
+int  manualExit = 0;
 
 int checkForStopSignal(double startTime);
 
@@ -169,7 +170,7 @@ void master(){
     fprintf(fp, "======================================================================\n");
     fprintf(fp, "STATION TERMINATION REPORT\n");
     fprintf(fp, "Terminated at Iteration %d\n",currentIteration);
-    fprintf(fp, "Terminated Manually? %s\n", stopSignal ? "Yes" : "No");
+    fprintf(fp, "Terminated Manually? %s\n", manualExit ? "Yes" : "No");
     fprintf(fp, "Total Elapsed Time: %f seconds\n", MPI_Wtime() - startTime);
     fprintf(fp, "Total Recorded Events: %d\n", totalEvents);
     fprintf(fp, "True Events: %d\n", trueEvents);
@@ -223,6 +224,7 @@ int checkForStopSignal(double startTime){
         MPI_Request send_request[size];
         MPI_Status receive_status[size];
         int numberOfReq = 0;
+        manualExit = 1;
         // Send a message to each node to end the iteration
         for (int i = 0; i < size; i++){
             MPI_Isend(&stopSignal, 1, MPI_INT, i, 3, MPI_COMM_WORLD, &send_request[numberOfReq]);

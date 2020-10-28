@@ -37,6 +37,7 @@ int slave(MPI_Comm station_comm){
     int  coord[2];
     int  neighbors[4];
     char packbuf[packSize];
+    char packbuf2[packSize];
 
     // MPI_Dims_create finds the best dimension for the cartesian grid 
     MPI_Dims_create(size-1, ndims, dims);
@@ -60,7 +61,7 @@ int slave(MPI_Comm station_comm){
     MPI_Request receive_status;
 	MPI_Irecv(&stopSignal, 1, MPI_INT, stationRank, 3, MPI_COMM_WORLD, &receive_status);
 
-    // Keep iterating till currentIteration reaches maxIterations OR 
+    // Keep iterating till currentIteration reaches maxIterations OR stop signal is received
     while(maxIterations == -1 || currentIteration <= maxIterations){
         // Initialize position pointer to 0
         int position = 0;
@@ -76,25 +77,46 @@ int slave(MPI_Comm station_comm){
         if(stopSignal == 1)
             printf("Rank %d received signal at iteration %d\n", rank, currentIteration);
         
-        // Exchange Temperature, IP and MAC addresses
-        for(int i=0 ; i<4 ; i++){
-            if(neighbors[i]!=-2){
-                MPI_Send(&temperature,     1, MPI_INT,  neighbors[i], 0, MPI_COMM_WORLD);
-                MPI_Send(&IP_address,     20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
-                MPI_Send(&MAC,            20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD);
-                MPI_Recv(&neighborTemp[i], 1, MPI_INT,  neighbors[i], 0, MPI_COMM_WORLD, &status[0]);
-                MPI_Recv(&neighborIP[i],  20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[1]);
-                MPI_Recv(&neighborMAC[i], 20, MPI_CHAR, neighbors[i], 0, MPI_COMM_WORLD, &status[2]);
-            }
-        }
-        // Get current time
-        char alertTime[dateSize];
-        getTimeStamp(alertTime);
-
         // Store current node's IP and MAC address in an array
         char nodeIPMAC[2][20];
         strncpy(nodeIPMAC[0], &IP_address, 20);
         strncpy(nodeIPMAC[1], &MAC, 20);
+
+        // Exchange Temperature, IP and MAC addresses
+        for(int i=0 ; i<4 ; i++){
+            if(neighbors[i]!=-2){
+                MPI_Status status;
+                MPI_Status status2; 
+                position = 0;
+                int flag = 0;
+                // Pack and send all of the data
+                MPI_Pack(&temperature,  1,  MPI_INT,  packbuf2, packSize, &position, MPI_COMM_WORLD);
+                MPI_Pack(&IP_address,  20, MPI_CHAR,  packbuf2, packSize, &position, MPI_COMM_WORLD);
+                MPI_Pack(&MAC,         20, MPI_CHAR,  packbuf2, packSize, &position, MPI_COMM_WORLD);
+                MPI_Send(packbuf2, packSize, MPI_PACKED, neighbors[i], 0, MPI_COMM_WORLD);
+                // Keep looping until a send request is detected
+                // If no send after 1 second, we assume that the neighbor node has exitted due to stop signal
+                // So in this case, we can also make this sensor node exit as it's neighbor will no longer send anything
+                double startTime = MPI_Wtime();
+                while(!flag){
+                    MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status2);
+                    double waitTime = MPI_Wtime() - startTime;
+                    if(waitTime > 1) break; // Exit after 1 second
+                }
+                if(stopSignal) break;
+                // Unpack all of the data and store it in neighborTemp, neighborIP and neighborMAC
+                position = 0;
+                MPI_Recv(packbuf2, packSize, MPI_PACKED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+                MPI_Unpack(packbuf2, packSize, &position, &neighborTemp[i],  1, MPI_INT,  MPI_COMM_WORLD);
+                MPI_Unpack(packbuf2, packSize, &position, &neighborIP[i],   20, MPI_CHAR, MPI_COMM_WORLD);
+                MPI_Unpack(packbuf2, packSize, &position, &neighborMAC[i],  20, MPI_CHAR, MPI_COMM_WORLD);
+            }
+        }
+        // if(stopSignal) break;
+        // Get current time
+        char alertTime[dateSize];
+        getTimeStamp(alertTime);
+
 
         // Initialize and fill an array containing neighboring node's dimensions
         // Also copy each neighbor's temperature for convenience
@@ -115,9 +137,16 @@ int slave(MPI_Comm station_comm){
 
         // Get the event time to calculate communication time
         double eventStartTime = MPI_Wtime();
-        int sendConditions = temperature > TEMP_THRESHOLD && neighborMatches >= 2;
+
+        // Only send to base station if:
+        //  1.) Temperature above threshold 
+        //  2.) 2+ neighbors have similar temperature 
+        //  3.) Stop signal is false
+        int sendConditions = temperature > TEMP_THRESHOLD && neighborMatches >= 2 && stopSignal == 0;
+
         if(sendConditions || rank == 0){
             // Pack all the necessary data
+            position = 0;
             MPI_Pack(&sendConditions,   1, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
             MPI_Pack(&currentIteration, 1, MPI_INT,    packbuf, packSize, &position, MPI_COMM_WORLD);
             MPI_Pack(&eventStartTime,   1, MPI_DOUBLE, packbuf, packSize, &position, MPI_COMM_WORLD);
@@ -138,10 +167,7 @@ int slave(MPI_Comm station_comm){
         currentIteration++;
 
         // If there is stop signal, break out of loop else wait for next iteration
-        if (stopSignal == 1){
-            printf("Rank %d break\n", rank);
-            break;  
-        } 
+        if (stopSignal == 1) break;  
         sleep(sleepTime);
     }
 
