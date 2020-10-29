@@ -75,7 +75,7 @@ int slave(MPI_Comm station_comm){
         char neighborMAC[4][20];
 
         if(stopSignal == 1)
-            printf("Rank %d received signal at iteration %d\n", rank, currentIteration);
+            printf("Rank %d received exit signal at iteration %d\n", rank, currentIteration);
         
         // Store current node's IP and MAC address in an array
         char nodeIPMAC[2][20];

@@ -44,10 +44,7 @@ void master(){
 
     // Initialize a 2D array of row*column to store satellite temperatures
     int satelliteArray[row][column];
-    for (int i = 0; i<row; i++){
-        for (int j = 0; j<column; j++)
-            satelliteArray[i][j] = 0;
-    }
+    memset(satelliteArray, 0,row*column*sizeof(int));
 
     // Start the satellite posix thread and pass in satelliteTemp array
     pthread_t satelliteThread;
@@ -73,9 +70,9 @@ void master(){
     FILE *fp;
     fp = fopen("stationLog.txt", "w");
 
-    // Initialize Counters to track neighbors that match temperatures and total message count
-    int  messageCount[(size-1)];
-    memset(messageCount, 0, (size-1)*sizeof(int));
+    // Initialize Counter to track 
+    int  eventCount[(size-1)][2];
+    memset(eventCount, 0, (size-1)*2*sizeof(int));
 
     printf("Iteration 1\n");
     // Listen to incoming requests sent by wsn nodes
@@ -126,8 +123,6 @@ void master(){
         char logTime[dateSize];
         getTimeStamp(logTime);
 
-        // Increment messageCount, totalEvents and totalCommTime
-        messageCount[sourceRank] += 1; 
         totalEvents += 1;
         totalCommTime += communicationTime;
 
@@ -139,9 +134,13 @@ void master(){
         if(satelliteTemp > TEMP_THRESHOLD){
             eventType = 1;
             trueEvents++;
+            eventCount[sourceRank][0]++;
         }else{
             falseEvents++;
+            eventCount[sourceRank][1]++;
         }
+
+        int nodeTrueEvents = eventCount[sourceRank][0], nodeFalseEvents = eventCount[sourceRank][1];
 
         // Log the received information
         fprintf(fp, "\n======================================================================\n");
@@ -164,9 +163,7 @@ void master(){
         fprintf(fp, "Infrared Satellite Reporting Coord: (%d, %d)\n", sourceX, sourceY);
 
         fprintf(fp, "\nCommunication Time: %f\n", communicationTime);
-        fprintf(fp, "Total Communications Time: %f seconds\n", totalCommTime);
-        fprintf(fp, "Average Communications Time: %f seconds\n", totalCommTime/totalEvents);
-        fprintf(fp, "Total Messages from Node %d: %d\n", sourceRank, messageCount[sourceRank]);
+        fprintf(fp, "Total Events from Node %d: %d (True: %d, False: %d)\n", sourceRank, (nodeTrueEvents+nodeFalseEvents), nodeTrueEvents, nodeFalseEvents);
         fprintf(fp, "Number of adjacent matches to reporting node: %d\n", neighborMatches);
         fprintf(fp, "======================================================================\n");
     }
