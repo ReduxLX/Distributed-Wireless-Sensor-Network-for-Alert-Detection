@@ -196,7 +196,7 @@ void master(){
     // Wait for satellite thread to finish before exitting
     pthread_join(satelliteThread, NULL);
 
-    printf("Station terminated\n");
+    printf("Station and satellite terminated\n");
     
 }
 
@@ -236,7 +236,9 @@ int checkForStopSignal(double startTime){
 
     // If "-1" detected then send non-blocking send requests to all sensor nodes with stopSignal=1
     if(strcmp(userInput,"-1")==0){
-        printf("User Terminating Input Detected\n");
+        printf("======================================================================\n");
+        printf("User Terminating Input Detected in commands.txt (-1)\n");
+        printf("======================================================================\n");
         stopSignal = 1;
         MPI_Request send_request[size];
         MPI_Status receive_status[size];

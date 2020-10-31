@@ -67,7 +67,7 @@ int main(int argc, char *argv[]){
     int error = 0;
     if(argc != 3 && argc != 4){
         if(rank == stationRank){
-            printf("Invalid number of arguments\nFormat should be: mpirun -np <total_processes> -oversubscribe main <row> <column>");
+            printf("Invalid number of arguments\nFormat should be: mpirun -np <total_processes> -oversubscribe main <row> <column>\n");
             printf("Alternatively to run for x iterations only: mpirun -np <total_processes> -oversubscribe main <row> <column> <x>\n");
         }
         error = -1;
@@ -83,6 +83,18 @@ int main(int argc, char *argv[]){
                 printf("Invalid rows and columns in terms of total_processes\nProcesses = row * column +1\n");
         }
     }
+
+    if(rank == stationRank && error==0){
+        printf("======================================================================\n");
+        printf("Creating a %d x %d cartesian grid containing %d sensor nodes\n", row, column, size-1);
+        printf("The WSN will run for %d iterations (-1: infinite)\n", maxIterations);
+        printf("Type -1 in commands.txt and save to terminate the WSN manually\n");
+        printf("Iteration time interval: %.2f seconds\n", sleepTime);
+        printf("By default this is 1 second but it can be changed in main.h\n");
+        printf("Warning: Faster time intervals can generate many log entries\n");
+        printf("======================================================================\n");
+    }
+    sleep(1);
 
     // Exit gracefully using MPI_Finalize() (and not MPI_Abort())
     if(error != 0){
